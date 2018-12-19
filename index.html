@@ -1,0 +1,493 @@
+<!doctype html> 
+<html lang="en"> 
+<head> 
+    <meta charset="UTF-8" />
+    <title>Project DivaScript</title>
+    <script src="//cdn.jsdelivr.net/npm/phaser@3.15.1/dist/phaser.js"></script>
+    <script src="http://www.youtube.com/player_api"></script>
+    <style type="text/css">
+        body {
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+
+<div class="wrapper" style="position: relative;">
+    <div id="player" style="pointer-events: none;z-index:-10";></div>
+
+    <div id="container" style="position: absolute; top: 0; left: 0; z-index:10"></div>
+</div>
+
+<script type="text/javascript">
+
+var config = {
+    type: Phaser.CANVAS,
+    width: 800,
+    height: 600,
+    parent: 'container',
+    transparent: true,
+    physics: {
+        default: 'arcade',
+        arcade: {
+            gravity: { y: 300 },
+            debug: false
+        }
+    },
+    scene: {
+        preload: preload,
+        create: create,
+        update: update
+    }
+};
+
+var player;
+var platforms;
+var cursors;
+var score = 0;
+var gameOver = false;
+var scoreText;
+var w, a, s, d;
+var currentKey;
+var editMode = false;
+var editorNotes;
+var noteTimings;
+var incomingNotes;
+var currentTime;
+//var videoID = 'eC6vLtLhmK4';
+var videoID = 'wZ1gEDquuyQ';
+
+var game = new Phaser.Game(config);
+
+var progressBar;
+
+function preload ()
+{
+    this.load.image('ground', 'assets/platform.png');
+    this.load.image('square', 'assets/square.png');
+    this.load.image('circle', 'assets/circle.png');
+    this.load.image('cross', 'assets/cross.png');
+    this.load.image('triangle', 'assets/triangle.png');
+    this.load.image('inverted-square', 'assets/inverted-square.png');
+    this.load.image('inverted-circle', 'assets/inverted-circle.png');
+    this.load.image('inverted-cross', 'assets/inverted-cross.png');
+    this.load.image('inverted-triangle', 'assets/inverted-triangle.png');
+    this.load.image('nice', 'assets/nice.png');
+    this.load.image('bad', 'assets/bad.png');
+    this.load.audio('play-note', 'sound/play-note.mp3');
+}
+
+function create ()
+{
+
+    //  The platforms group contains the ground and the 2 ledges we can jump on
+    platforms = this.physics.add.staticGroup();
+
+    //  Here we create the ground.
+    //  Scale it to fit the width of the game (the original sprite is 400x32 in size)
+    platforms.create(400, 568, 'ground').setScale(2).refreshBody();
+    platforms.create(400, 32, 'ground').setScale(2).refreshBody();
+
+
+    var bg = this.add.image(0, 0, 'square').setInteractive();
+    var text = this.add.image(0, 0, 'nice');
+
+    var container = this.add.container(750, 34, [ bg, text ]);
+
+    bg.addListener('pointerup', editor, this);
+
+    //  Input Events
+    cursors = this.input.keyboard.createCursorKeys();
+
+    w = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W);
+    a = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A);
+    s = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.S);
+    d = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D);
+
+    //  The score
+    scoreText = this.add.text(16, 16, 'score: 0', { fontSize: '32px', fill: '#000' });
+
+    editorNotes = this.physics.add.staticGroup();
+
+    noteTimings = this.physics.add.staticGroup();
+    incomingNotes = this.physics.add.staticGroup();
+
+
+    generateNotes();
+
+    progressBar = document.createElement('input');
+    progressBar.type = 'range';
+    progressBar.min = '0';
+    progressBar.max = '0';
+    progressBar.step = '5';
+    progressBar.value = '0';
+    document.body.appendChild(progressBar);
+
+    progressBar.addEventListener('input', function (e) {
+
+        player.seekTo(e.target.value);
+
+    });
+
+    progressBar.style.visibility = 'hidden';
+
+}
+
+function generateNotes() {
+    var beatmap;
+
+    fetch("beatmaps/" + videoID + "/" + "beatmap.txt")
+        .then(response => response.text())
+        .then(text => beatmap = text);
+
+    setTimeout(function(){
+        var noteArray = beatmap.split("\n");
+        //console.log(noteArray);
+        var lastNoteIndex = noteArray.length;
+
+        for (var i = 1; i < lastNoteIndex; i++) {
+            var currentNote = noteArray[i];
+            var currentNoteArray = currentNote.split(",");
+            var time = currentNoteArray[0];
+            var x = currentNoteArray[1];
+            var y = currentNoteArray[2];
+            //console.log('x: ' + x);
+            //console.log('y: ' + y);
+
+            var name = currentNoteArray[3];
+            var key = 'inverted-' + name;
+            var newNote = noteTimings.create(x, y, key);
+            newNote.setData('time', time);
+            newNote.setData('x', x);
+            newNote.setData('y', y);
+            newNote.setData('name', name);
+            newNote.setData('animationRunning', false);
+            newNote.disableBody(true, true);
+        }
+
+        noteTimings.children.iterate(function (child) {
+            var time = child.getData('time');
+            var x = Number(child.getData('x')) + 300;
+            var y = child.getData('y');
+            //console.log('x: ' + x);
+            //console.log('y: ' + y);
+            var name = child.getData('name');
+            var key = name;
+            var newNote = incomingNotes.create(x, y, key);
+            newNote.setData('time', time);
+            newNote.setData('x', x);
+            //Let gravity do the work
+            newNote.setData('y', y);
+            newNote.setData('name', name);
+            newNote.setData('animationRunning', false);
+            newNote.disableBody(true, true);
+        });
+
+        score += 9000;
+        scoreText.setText('Score: ' + score);
+
+    }, 2000);
+}
+
+function editor ()
+{
+    editMode = !editMode;
+    if (editMode == true) {
+        progressBar.style.visibility = 'visible';
+    }
+    //If edit mode is done
+    if (editMode == false) {
+        exportBeatMap();
+        progressBar.style.visibility = 'hidden';
+    }
+}
+
+function exportBeatMap() {
+    var allLines = videoID + '\n';
+    editorNotes.children.iterate(function (child) {
+
+        child.disableBody(true, true);
+
+        var line = '';
+        var x = child.getData('x');
+        var y = child.getData('y');
+        var name = child.getData('name');
+        var time = child.getData('time');
+        line += (time + ',' + x + ',' + y + ',' + name + ',' + '0' + ',' + '0' + '\n'); 
+        allLines += line;
+    });
+
+    var data = new FormData();
+    data.append("data" , allLines);
+    var xhr = new XMLHttpRequest();
+    xhr.open( 'post', 'beatmap.php', true );
+    xhr.send(data);
+}
+
+
+
+function noteKeyIsPressed() {
+    if (
+        Phaser.Input.Keyboard.JustDown(w) || Phaser.Input.Keyboard.JustDown(cursors.up)) {
+        currentKey = 'triangle';
+        return true;
+    }
+    if (
+        Phaser.Input.Keyboard.JustDown(a) || Phaser.Input.Keyboard.JustDown(cursors.left)) {
+        currentKey = 'square';
+        return true;
+    }
+    if (
+        Phaser.Input.Keyboard.JustDown(s) || Phaser.Input.Keyboard.JustDown(cursors.down)) {
+        currentKey = 'cross';
+        return true;
+    }
+    if (
+        Phaser.Input.Keyboard.JustDown(d) || Phaser.Input.Keyboard.JustDown(cursors.right)) {
+        currentKey = 'circle';
+        return true;
+    }
+    else {
+        currentKey = '';
+        return false;
+    }
+}
+
+var x = 32;
+var y = 550;
+var xOffset = 0;
+
+function update ()
+{
+
+    progressBar.value = currentTime;
+    if (gameOver)
+    {
+        return;
+    }
+
+    /*if (cursors.left.isDown)
+    {
+        player.setVelocityX(-160);
+
+        player.anims.play('left', true);
+    }
+    else if (cursors.right.isDown)
+    {
+        player.setVelocityX(160);
+
+        player.anims.play('right', true);
+    }
+    else
+    {
+        player.setVelocityX(0);
+
+        player.anims.play('turn');
+    }
+
+    if (cursors.up.isDown && player.body.touching.down)
+    {
+        player.setVelocityY(-330);
+    }*/
+    if (editMode) {
+        if (noteKeyIsPressed()) {
+            if (y < 100) {
+                y = 550;
+                xOffset = xOffset + 96;
+                x = 32 + xOffset;
+            }
+            if (x == 32 + xOffset) {
+                x = 64 + xOffset;
+            }
+            else if (x == 64 + xOffset) {
+                x = 32 + xOffset;
+            }
+            y = y - 32;
+            var newNote = editorNotes.create(x, y, currentKey);
+            newNote.setData('x', x);
+            newNote.setData('y', y);
+            newNote.setData('name', currentKey);
+            newNote.setData('time', currentTime);
+        }
+    }
+    else {
+
+        displayIncomingNotes(this);
+
+        if (noteKeyIsPressed()) {
+            //Play sound effect either way
+            this.sound.play('play-note');
+            var timingChild = noteTimings.getFirst(true);
+            var incomingChild = incomingNotes.getFirst(true);
+            var first = Phaser.Display.Bounds.GetCenterX(timingChild);
+            var second = Phaser.Display.Bounds.GetCenterX(incomingChild);
+            //If timing is close enough to a note to matter
+
+            //NOTE:
+
+            //Currently, only hitting the correct button matters, not the exact timing
+            if (Phaser.Math.Distance.Between(0,first,0,second) < 16) {
+                if (currentKey == timingChild.getData('name')) {
+                    //Display feedback            
+                    newsprite = new feedbackSprite(this, Phaser.Display.Bounds.GetCenterX(timingChild) + 50, Phaser.Display.Bounds.GetCenterY(timingChild) - 50, 'nice');
+                    newsprite.animate(this);
+                }
+                else {
+                    //Display feedback            
+                    newsprite = new feedbackSprite(this, Phaser.Display.Bounds.GetCenterX(timingChild) + 50, Phaser.Display.Bounds.GetCenterY(timingChild) - 50, 'bad');
+                    newsprite.animate(this);
+                }
+                //Remove note
+                noteTimings.remove(timingChild,true,true);
+                incomingNotes.remove(incomingChild,true,true);
+            }
+        }
+    }
+}
+
+function displayIncomingNotes(scene) {
+    noteTimings.children.iterate(function (child) {
+        if ( currentTime > 0.20 && Number(child.getData('time')) < (Number(currentTime) + 5)) {
+                child.enableBody(true, child.x, child.y, true, true);
+
+                var animationRunning = child.getData('animationRunning');
+                if (animationRunning == false) {
+                    //Adjust timeout to let note fly off screen
+                    setTimeout(function() {
+                        noteTimings.remove(child,true,true);
+                    }, 6000);
+                    //console.log(child.getData('time') + 'started running at' + currentTime);
+                    child.setData('animationRunning', true);
+                }
+        }
+
+        /*if ( (Number(child.getData('time'))) < Number(currentTime)) {
+            //child.disableBody(true, child.x, child.y, true, true);
+            //child.setActive(false);
+            noteTimings.remove(child,true,true);
+        }*/
+    });
+
+    incomingNotes.children.iterate(function (child) {
+        //If note is coming in 5 seconds or less
+        //Ex: note that starts at 5sec will show from 0sec
+        if ( currentTime > 0.20 && Number(child.getData('time')) < (Number(currentTime) + 5)) {
+            child.enableBody(true, child.x, child.y, true, true);
+
+            var animationRunning = child.getData('animationRunning');
+            if (animationRunning == false) {
+                var tween = scene.tweens.add({
+                    targets: child,
+                    x: (child.x - 300),
+                    ease: 'Linear',
+                    //Duration matches the currentTime + 5, in the if statement above
+                    duration: 5000,
+                    yoyo: false,
+                    repeat: 0
+                });
+                //Adjust timeout to let note fly off screen
+                setTimeout(function() {
+                    incomingNotes.remove(child,true,true);
+                }, 6000);
+                //console.log(child.getData('time') + 'started running at' + currentTime);
+                child.setData('animationRunning', true);
+            }
+        }
+
+        //Ex: note that starts at 5sec will stop showing at 10sec
+        /*if ( (Number(child.getData('time'))) < Number(currentTime)) {
+            incomingNotes.remove(child,true,true);
+        }*/
+
+
+    });
+}
+
+class feedbackSprite extends Phaser.GameObjects.Sprite {
+    constructor(scene, x, y, texture, frame) {
+        super(scene, x, y, texture, frame);
+        scene.add.existing(this);
+    }
+    animate(scene) {
+        scene.tweens.add({
+          targets: [this],
+          ease: 'Sine.easeInOut',
+          duration: 1000,
+          delay: 0,
+          alpha: {
+            getStart: () => 1.0,
+            getEnd: () => 0.0
+          },
+          onComplete: () => {
+            //handle completion
+          }
+        });
+    }
+}
+
+function begin() {
+    incomingNotes.children.iterate(function (child) {
+
+        });
+        progressBar.max = player.getDuration();
+
+}
+
+
+
+var player;
+
+function onYouTubePlayerAPIReady() {
+    player = new YT.Player('player', {
+        width: 800,
+        height: 600,
+        playerVars: {
+            'autoplay': 1,
+            'controls': 0,
+            'autohide': 1,
+            'wmode': 'opaque',
+            'showinfo': 0,
+            'loop': 1,
+            'mute': 0,
+            'disablekb': 1,
+            'modestbranding': 1,
+            'iv_load_policy': 3
+            //'start': 15,
+            //'end': 110,
+            //'playlist': 'NQKC24th90U'
+        },
+        videoId: videoID,
+        events: {
+            'onReady': onPlayerReady,
+            'onStateChange': onPlayerStateChange
+        }
+    });
+}
+
+
+function onPlayerReady(event) {
+    event.target.mute();
+    event.target.setVolume(40);
+}
+
+function onPlayerStateChange(event) {
+    if (event.data == YT.PlayerState.PLAYING) {
+        event.target.unMute();
+        event.target.playVideo();
+        //Wait until video begins to start notes
+        begin();
+        startInterval();
+    }
+}
+
+function startInterval() {
+    checkInt = setInterval(function() {
+        currentTime = player.getCurrentTime();
+    }, 200);
+}
+
+
+</script>
+
+</body>
+</html>
