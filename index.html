@@ -347,19 +347,23 @@ function update ()
 
 function displayIncomingNotes(scene) {
     noteTimings.children.iterate(function (child) {
-        if ( currentTime > 0.20 && Number(child.getData('time')) < (Number(currentTime) + 5)) {
+        var animationRunning = child.getData('animationRunning');
+        if (animationRunning == false) {
+            if ( currentTime > 0.20 && Number(child.getData('time')) < (Number(currentTime) + 5)) {
                 child.enableBody(true, child.x, child.y, true, true);
-
-                var animationRunning = child.getData('animationRunning');
-                if (animationRunning == false) {
-                    //Adjust timeout to let note fly off screen
-                    setTimeout(function() {
-                        noteTimings.remove(child,true,true);
-                    }, 6000);
-                    //console.log(child.getData('time') + 'started running at' + currentTime);
-                    child.setData('animationRunning', true);
+                var timeOffset = 0;
+                if (child.getData('time') < 5) {
+                    timeOffset = 5 - Number(child.getData('time'));
                 }
+                //Adjust timeout to let note fly off screen
+                setTimeout(function() {
+                    noteTimings.remove(child,true,true);
+                }, 5500 - timeOffset*1000);
+                //console.log(child.getData('time') + 'started running at' + currentTime);
+                child.setData('animationRunning', true);
+            }
         }
+        
 
         /*if ( (Number(child.getData('time'))) < Number(currentTime)) {
             //child.disableBody(true, child.x, child.y, true, true);
@@ -369,30 +373,34 @@ function displayIncomingNotes(scene) {
     });
 
     incomingNotes.children.iterate(function (child) {
-        //If note is coming in 5 seconds or less
-        //Ex: note that starts at 5sec will show from 0sec
-        if ( currentTime > 0.20 && Number(child.getData('time')) < (Number(currentTime) + 5)) {
-            child.enableBody(true, child.x, child.y, true, true);
-
-            var animationRunning = child.getData('animationRunning');
-            if (animationRunning == false) {
+        var animationRunning = child.getData('animationRunning');
+        if (animationRunning == false) {
+            //If note is coming in 5 seconds or less
+            //Ex: note that starts at 5sec will show from 0sec
+            if ( currentTime > 0.20 && Number(child.getData('time')) < (Number(currentTime) + 5)) {
+                child.enableBody(true, child.x, child.y, true, true);
+                var timeOffset = 0;
+                if (child.getData('time') < 5) {
+                    timeOffset = 5 - Number(child.getData('time'));
+                }
                 var tween = scene.tweens.add({
                     targets: child,
                     x: (child.x - 300),
                     ease: 'Linear',
                     //Duration matches the currentTime + 5, in the if statement above
-                    duration: 5000,
+                    duration: 4900 - timeOffset*1000,
                     yoyo: false,
                     repeat: 0
                 });
                 //Adjust timeout to let note fly off screen
                 setTimeout(function() {
                     incomingNotes.remove(child,true,true);
-                }, 6000);
+                }, 5500 - timeOffset*1000);
                 //console.log(child.getData('time') + 'started running at' + currentTime);
                 child.setData('animationRunning', true);
             }
         }
+
 
         //Ex: note that starts at 5sec will stop showing at 10sec
         /*if ( (Number(child.getData('time'))) < Number(currentTime)) {
