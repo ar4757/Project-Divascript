@@ -13,12 +13,12 @@ foreach(glob($dir) as $videoIDFolder) {
 				foreach ($lines as $line_num => $line) {
 				    if ($line_num == 0) {
 				    	$line = strstr($line, "\n", true);
-						$line = substr($line, 0, -1);
+						//$line = substr($line, 0, -1);
 				    	$song = $line;
 				    }
 				    else if ($line_num == 1) {
 				    	$line = strstr($line, "\n", true);
-						$line = substr($line, 0, -1);
+						//$line = substr($line, 0, -1);
 				    	$song = $song . '-' . $line;
 				    	$songList[$i] = $song;
 				    	$i++;
