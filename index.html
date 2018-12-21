@@ -312,6 +312,11 @@ function startSong(scene, retry) {
     }
     else {
         videoID = scene.lastChild.textContent;
+        console.log("VideoID Length: " + videoID.length);
+        if (videoID.length > 11) {
+            videoID = videoID.substr(0, 11);
+            console.log("New VideoID Length: " + videoID.length);
+        }
         var thumbnailLink = "http://img.youtube.com/vi/" + videoID + "/0.jpg";
         thumbnailImg = document.getElementById('thumbnailImg');
         thumbnailImg.style.visibility = 'hidden';
