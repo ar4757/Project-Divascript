@@ -213,7 +213,13 @@ function create ()
     progressBar.style.visibility = 'hidden';
 
     var xhr = new XMLHttpRequest();
-    xhr.open( 'get', 'song_list.php', true );
+    console.log(location.hostname);
+    if (location.hostname == "localhost") {
+        xhr.open( 'get', 'song_list.php', true );
+    }
+    else {
+        xhr.open( 'get', 'song_list_heroku.php', true );
+    }
     xhr.send();
 
 
