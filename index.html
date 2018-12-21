@@ -378,6 +378,7 @@ function generateNotes() {
 
     //NOTE: Timeout value is important, higher timeout broke everything
     setTimeout(function(){
+        console.log("The beatmap is: " + beatmap);
         var noteArray = beatmap.split("\n");
         //console.log(noteArray);
         var lastNoteIndex = noteArray.length;
