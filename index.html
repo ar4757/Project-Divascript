@@ -3,6 +3,13 @@
 <head> 
     <meta charset="UTF-8" />
     <title>Project DivaScript</title>
+    <link rel="apple-touch-icon" sizes="120x120" href="/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5">
+    <meta name="msapplication-TileColor" content="#00aba9">
+    <meta name="theme-color" content="#ffffff">
     <script src="//cdn.jsdelivr.net/npm/phaser@3.15.1/dist/phaser.js"></script>
     <script src="https://www.youtube.com/player_api"></script>
     <style type="text/css">
@@ -62,9 +69,6 @@ var editorNotes;
 var noteTimings;
 var incomingNotes;
 var currentTime;
-//var videoID = 'eC6vLtLhmK4';
-//var videoID = 'wZ1gEDquuyQ';
-//var videoID = 'Y1tHNKH7AAM';
 var videoID;
 
 var game = new Phaser.Game(config);
@@ -126,11 +130,8 @@ function preload ()
 function create ()
 {
 
-    //  The platforms group contains the ground and the 2 ledges we can jump on
     bars = this.physics.add.staticGroup();
 
-    //  Here we create the ground.
-    //  Scale it to fit the width of the game (the original sprite is 400x32 in size)
     bars.create(400, 568, 'bar');
     bars.create(400, 32, 'bar');
 
@@ -211,8 +212,6 @@ function create ()
 
     progressBar.style.visibility = 'hidden';
 
-    //var data = new FormData();
-    //data.append("data" , allLines);
     var xhr = new XMLHttpRequest();
     xhr.open( 'get', 'song_list.php', true );
     xhr.send();
@@ -232,8 +231,6 @@ function create ()
                 var array = songList[i].split(/-(.+)/);
                 var currentVideoID = array[0];
                 var currentTitle = array[1];
-                //console.log("VideoID: " + currentVideoID);
-                //console.log("Title: " + currentTitle);
 
                 var thumbImg = document.createElement("img");
                 thumbImg.src = "http://img.youtube.com/vi/" + currentVideoID + "/0.jpg";
@@ -259,49 +256,10 @@ function create ()
                 paragraph.appendChild(idlabelnode);
                 paragraph.appendChild(idtextnode);
                 paragraph.addEventListener("click", function() {startSong(this, false);});
-                //list.appendChild(thumbImg);
                 list.appendChild(paragraph);
             }
 
-                /*var paragraph = list.children.item(0);
-                paragraph.addEventListener("click", function() {
-                    console.log("Paragraph: " + paragraph.textContent);
-                    videoID = paragraph.lastChild.textContent;
-                    player.loadVideoById(videoID);
-                    selector.style.visibility = 'hidden';
-                    list.style.visibility = 'hidden';
-                });
-
-                var swag = list.children.item(1);
-                swag.addEventListener("click", function() {
-                    console.log("Paragraph: " + swag.textContent);
-                    videoID = swag.lastChild.textContent;
-                    player.loadVideoById(videoID);
-                    selector.style.visibility = 'hidden';
-                    list.style.visibility = 'hidden';
-                });*/
-
-
-                /*progressBar.addEventListener('input', function (e) {
-
-                    player.seekTo(e.target.value);
-
-                });
-
-                progressBar.style.visibility = 'hidden';*/
-                /*var bg = this.add.image(0, 0, 'ground').setInteractive();
-                var text = this.add.text(0, 0, videoID);
-                var container = this.add.container(400, 300, [ bg, text ]);
-
-                bg.addListener('pointerup', chooseSong, this);*/
-
-
-
-
-
             selector.appendChild(list);
-            //Do whatever you want here.
-            //$("#addIO").html(cars.join(", "));
 
     }, 500);
 
@@ -339,7 +297,6 @@ function goHome() {
 }
 
 function startSong(scene, retry) {
-    //console.log("Paragraph: " + this.textContent);
     if (retry == true) {
         noteTimings.clear(true, true);
         incomingNotes.clear(true, true);
@@ -352,14 +309,8 @@ function startSong(scene, retry) {
         var thumbnailLink = "http://img.youtube.com/vi/" + videoID + "/0.jpg";
         thumbnailImg = document.getElementById('thumbnailImg');
         thumbnailImg.style.visibility = 'hidden';
-        //console.log(thumbnailLink);
         thumbnailImg.src = thumbnailLink;
-        console.log("The videoID: " + videoID);
         player.loadVideoById(videoID);
-        console.log("The videoID now: " + videoID);
-        //player.pauseVideo();
-        //player.seekTo(0);
-        //player.playVideo();
         selector.style.visibility = 'hidden';
         list.style.visibility = 'hidden';
         scoreText.visible = true;
@@ -379,9 +330,7 @@ function generateNotes() {
 
     //NOTE: Timeout value is important, higher timeout broke everything
     setTimeout(function(){
-        console.log("The beatmap is: " + beatmap);
         var noteArray = beatmap.split("\n");
-        //console.log(noteArray);
         var lastNoteIndex = noteArray.length;
 
         for (var i = 2; i < lastNoteIndex - 1; i++) {
@@ -390,8 +339,6 @@ function generateNotes() {
             var time = currentNoteArray[0];
             var x = currentNoteArray[1];
             var y = currentNoteArray[2];
-            //console.log('x: ' + x);
-            //console.log('y: ' + y);
 
             var name = currentNoteArray[3];
             var key = 'inverted-' + name;
@@ -408,14 +355,11 @@ function generateNotes() {
             var time = child.getData('time');
             var x = Number(child.getData('x')) + 300;
             var y = child.getData('y');
-            //console.log('x: ' + x);
-            //console.log('y: ' + y);
             var name = child.getData('name');
             var key = name;
             var newNote = incomingNotes.create(x, y, key);
             newNote.setData('time', time);
             newNote.setData('x', x);
-            //Let gravity do the work
             newNote.setData('y', y);
             newNote.setData('name', name);
             newNote.setData('animationRunning', false);
@@ -449,8 +393,6 @@ function editor ()
 
 function loadEditVideo () {
     videoID = editText.value;
-    //console.log(videoID);
-    //generateNotes();
     var thumbnailLink = "http://img.youtube.com/vi/" + videoID + "/0.jpg";
     thumbnailImg = document.getElementById('thumbnailImg');
     thumbnailImg.style.visibility = 'hidden';
@@ -524,7 +466,7 @@ var xOffset = 0;
 
 function update ()
 {
-    console.log(currentTime);
+    //console.log(currentTime);
     progressBar.value = currentTime;
 
     if (countdown == 0) {
@@ -653,13 +595,6 @@ function displayIncomingNotes(scene) {
                 child.setData('animationRunning', true);
             }
         }
-        
-
-        /*if ( (Number(child.getData('time'))) < Number(currentTime)) {
-            //child.disableBody(true, child.x, child.y, true, true);
-            //child.setActive(false);
-            noteTimings.remove(child,true,true);
-        }*/
     });
 
     incomingNotes.children.iterate(function (child) {
@@ -673,7 +608,6 @@ function displayIncomingNotes(scene) {
                 if (child.getData('time') < 5) {
                     timeOffset = 5 - Number(child.getData('time'));
                     timeOffset *= 1000;
-                    //console.log("TimeOffset: " + timeOffset);
                 }
                 var tween = scene.tweens.add({
                     targets: child,
@@ -697,18 +631,9 @@ function displayIncomingNotes(scene) {
                     }, 5000);
                     timeouts.push(timer);
                 }
-                //console.log(child.getData('time') + 'started running at' + currentTime);
                 child.setData('animationRunning', true);
             }
         }
-
-
-        //Ex: note that starts at 5sec will stop showing at 10sec
-        /*if ( (Number(child.getData('time'))) < Number(currentTime)) {
-            incomingNotes.remove(child,true,true);
-        }*/
-
-
     });
 }
 
@@ -802,7 +727,6 @@ function onYouTubePlayerAPIReady() {
 
 
 function onPlayerReady(event) {
-    //console.log("Ready");
     event.target.mute();
     event.target.setVolume(40);
     startInterval();
@@ -810,27 +734,9 @@ function onPlayerReady(event) {
 
 var firstTime = true;
 function onPlayerStateChange(event) {
-    /*
-    if (event.data == YT.PlayerState.PAUSED) {
-        console.log("Paused");
-        if (firstTime == true) {
-            player.seekTo(0);
-            firstTime = false;
-        }
-
-        //event.target.unMute();
-        //event.target.playVideo();
-    }*/
-    
     if (event.data == YT.PlayerState.PLAYING) {
-        //console.log("Started");
         event.target.unMute();
-        //event.target.unMute();
-        //event.target.playVideo();
-        //Wait until video begins to start notes
         begin();
-        //startInterval();
-        //console.log(currentTime);
     }
 }
 
