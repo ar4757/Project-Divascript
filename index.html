@@ -8,6 +8,7 @@
     <style type="text/css">
         body {
             margin: 0;
+            position: fixed;
         }
     </style>
 </head>
@@ -16,7 +17,13 @@
 <div class="wrapper" style="position: relative;">
     <div id="player" style="pointer-events: none;z-index:-10";></div>
 
+    <div id="progress" style="z-index:50";></div>
+
     <div id="container" style="position: absolute; top: 0; left: 0; z-index:10"></div>
+
+    <div id="selector" style="position: absolute; overflow: scroll; width: 800px; height: 472px; background-color: #33b0ec; top: 64px; left: 0; z-index:20"></div> 
+
+    <img id="thumbnailImg" style="position: absolute; width: 800px; height: 472px;top: 64px; left: 0; z-index: 15; object-fit: cover">
 </div>
 
 <script type="text/javascript">
@@ -42,12 +49,13 @@ var config = {
 };
 
 var player;
-var platforms;
+var bars;
 var cursors;
 var score = 0;
 var gameOver = false;
 var scoreText;
 var w, a, s, d;
+var p;
 var currentKey;
 var editMode = false;
 var editorNotes;
@@ -55,15 +63,47 @@ var noteTimings;
 var incomingNotes;
 var currentTime;
 //var videoID = 'eC6vLtLhmK4';
-var videoID = 'wZ1gEDquuyQ';
+//var videoID = 'wZ1gEDquuyQ';
+//var videoID = 'Y1tHNKH7AAM';
+var videoID;
 
 var game = new Phaser.Game(config);
 
+var progressDiv;
+
 var progressBar;
+
+var selector;
+
+var list;
+
+var paused = false;
+
+var editText;
+
+var editContainer;
+
+var saveContainer;
+
+var submitContainer;
+
+var editParagraph;
+
+var homeContainer;
+
+var retryContainer;
+
+var timeouts = [];
+
+var countdown;
+
+var countdownText;
+
+var interval;
 
 function preload ()
 {
-    this.load.image('ground', 'assets/platform.png');
+    this.load.image('bar', 'assets/bar.png');
     this.load.image('square', 'assets/square.png');
     this.load.image('circle', 'assets/circle.png');
     this.load.image('cross', 'assets/cross.png');
@@ -74,6 +114,12 @@ function preload ()
     this.load.image('inverted-triangle', 'assets/inverted-triangle.png');
     this.load.image('nice', 'assets/nice.png');
     this.load.image('bad', 'assets/bad.png');
+    this.load.image('edit-mode', 'assets/edit-mode.png');
+    this.load.image('edit-mode-background', 'assets/edit-mode-background.png');
+    this.load.image('save-edit', 'assets/save-edit.png');
+    this.load.image('submit-text', 'assets/submit-text.png');
+    this.load.image('home', 'assets/home.png');
+    this.load.image('retry', 'assets/retry.png');
     this.load.audio('play-note', 'sound/play-note.mp3');
 }
 
@@ -81,20 +127,46 @@ function create ()
 {
 
     //  The platforms group contains the ground and the 2 ledges we can jump on
-    platforms = this.physics.add.staticGroup();
+    bars = this.physics.add.staticGroup();
 
     //  Here we create the ground.
     //  Scale it to fit the width of the game (the original sprite is 400x32 in size)
-    platforms.create(400, 568, 'ground').setScale(2).refreshBody();
-    platforms.create(400, 32, 'ground').setScale(2).refreshBody();
+    bars.create(400, 568, 'bar');
+    bars.create(400, 32, 'bar');
 
 
-    var bg = this.add.image(0, 0, 'square').setInteractive();
-    var text = this.add.image(0, 0, 'nice');
+    //Edit Mode
+    var bg = this.add.image(0, 0, 'edit-mode-background').setInteractive();
+    var text = this.add.image(0, 0, 'edit-mode');
 
-    var container = this.add.container(750, 34, [ bg, text ]);
+    editContainer = this.add.container(700, 34, [ bg, text ]);
 
     bg.addListener('pointerup', editor, this);
+
+    var saveBg = this.add.image(0, 0, 'edit-mode-background').setInteractive();
+    var saveText = this.add.image(0, 0, 'save-edit');
+
+    saveContainer = this.add.container(700, 34, [ saveBg, saveText ]);
+
+    saveBg.addListener('pointerup', editor, this);
+
+    saveContainer.visible = false;
+
+    var homeBg = this.add.image(0, 0, 'edit-mode-background').setInteractive();
+    var homeText = this.add.image(0, 0, 'home');
+
+    homeContainer = this.add.container(544, 34, [ homeBg, homeText ]);
+
+    homeBg.addListener('pointerup', goHome, this);
+
+    var retryBg = this.add.image(0, 0, 'edit-mode-background').setInteractive();
+    var retryText = this.add.image(0, 0, 'retry');
+
+    retryContainer = this.add.container(700, 34, [ retryBg, retryText ]);
+
+    retryBg.addListener('pointerup', function() {startSong(this, true);}, this);
+
+    retryContainer.visible = false;
 
     //  Input Events
     cursors = this.input.keyboard.createCursorKeys();
@@ -104,8 +176,12 @@ function create ()
     s = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.S);
     d = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D);
 
+    p = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.P);
+
     //  The score
-    scoreText = this.add.text(16, 16, 'score: 0', { fontSize: '32px', fill: '#000' });
+    scoreText = this.add.text(16, 16, 'Score: 0', { fontSize: '32px', fill: '#000' });
+
+    scoreText.visible = false;
 
     editorNotes = this.physics.add.staticGroup();
 
@@ -113,15 +189,19 @@ function create ()
     incomingNotes = this.physics.add.staticGroup();
 
 
-    generateNotes();
+    //generateNotes();
 
+    progressDiv = document.getElementById('progress');
+    progressDiv.style.position = 'absolute';
+    progressDiv.style.top = '550px';
+    progressDiv.style.left = '300px';
     progressBar = document.createElement('input');
     progressBar.type = 'range';
     progressBar.min = '0';
     progressBar.max = '0';
     progressBar.step = '5';
     progressBar.value = '0';
-    document.body.appendChild(progressBar);
+    progressDiv.appendChild(progressBar);
 
     progressBar.addEventListener('input', function (e) {
 
@@ -130,6 +210,162 @@ function create ()
     });
 
     progressBar.style.visibility = 'hidden';
+
+    //var data = new FormData();
+    //data.append("data" , allLines);
+    var xhr = new XMLHttpRequest();
+    xhr.open( 'get', 'song_list.php', true );
+    xhr.send();
+
+
+    selector = document.getElementById('selector');
+
+    list = document.createElement('LI');
+    list.style.listStyle = 'none';
+    list.style.position = 'absolute';
+    list.style.top = '64px';
+    list.style.left = '32px';
+
+        setTimeout(function(){
+            var songList = JSON.parse(xhr.responseText);
+            for (var i = 0; i < songList.length; i++) {
+                var array = songList[i].split(/-(.+)/);
+                var currentVideoID = array[0];
+                var currentTitle = array[1];
+                //console.log("VideoID: " + currentVideoID);
+                //console.log("Title: " + currentTitle);
+
+                var thumbImg = document.createElement("img");
+                thumbImg.src = "http://img.youtube.com/vi/" + currentVideoID + "/0.jpg";
+                thumbImg.style.width = '480px';
+                thumbImg.style.height = '360px';
+                thumbImg.style.float = 'left';
+                //thumbImg.style.width = '480px';
+                //thumbImg.style.height = '360px';
+                //thumbImg.style.height = '272px';
+                //thumbImg.style.objectFit = 'cover';
+                thumbImg.style.objectFit = 'contain';
+                var titlelabelnode = document.createTextNode("Title: ");
+                var titletextnode = document.createTextNode(currentTitle);
+                var br = document.createElement("br");
+                var idlabelnode = document.createTextNode("Video ID: ");
+                var idtextnode = document.createTextNode(currentVideoID);
+                var paragraph = document.createElement('P');
+                paragraph.style.marginBottom = '360px';
+                paragraph.appendChild(thumbImg);
+                paragraph.appendChild(titlelabelnode);
+                paragraph.appendChild(titletextnode);
+                paragraph.appendChild(br);
+                paragraph.appendChild(idlabelnode);
+                paragraph.appendChild(idtextnode);
+                paragraph.addEventListener("click", function() {startSong(this, false);});
+                //list.appendChild(thumbImg);
+                list.appendChild(paragraph);
+            }
+
+                /*var paragraph = list.children.item(0);
+                paragraph.addEventListener("click", function() {
+                    console.log("Paragraph: " + paragraph.textContent);
+                    videoID = paragraph.lastChild.textContent;
+                    player.loadVideoById(videoID);
+                    selector.style.visibility = 'hidden';
+                    list.style.visibility = 'hidden';
+                });
+
+                var swag = list.children.item(1);
+                swag.addEventListener("click", function() {
+                    console.log("Paragraph: " + swag.textContent);
+                    videoID = swag.lastChild.textContent;
+                    player.loadVideoById(videoID);
+                    selector.style.visibility = 'hidden';
+                    list.style.visibility = 'hidden';
+                });*/
+
+
+                /*progressBar.addEventListener('input', function (e) {
+
+                    player.seekTo(e.target.value);
+
+                });
+
+                progressBar.style.visibility = 'hidden';*/
+                /*var bg = this.add.image(0, 0, 'ground').setInteractive();
+                var text = this.add.text(0, 0, videoID);
+                var container = this.add.container(400, 300, [ bg, text ]);
+
+                bg.addListener('pointerup', chooseSong, this);*/
+
+
+
+
+
+            selector.appendChild(list);
+            //Do whatever you want here.
+            //$("#addIO").html(cars.join(", "));
+
+    }, 500);
+
+    editParagraph = document.createElement('P');
+    editParagraph.style.position = 'absolute';
+    editParagraph.style.top = '52px';
+    editParagraph.style.left = '232px';
+    editParagraph.style.visibility = 'hidden';
+    var editTextlabelnode = document.createTextNode("Video ID: ");
+    editParagraph.appendChild(editTextlabelnode);
+
+    editText = document.createElement('input');
+    editText.type = 'text';
+    editText.style.position = 'absolute';
+    editText.style.top = '64px';
+    editText.style.left = '300px';
+    editText.style.visibility = 'hidden';
+
+    selector.appendChild(editParagraph);
+    selector.appendChild(editText);
+
+    var submitBg = this.add.image(0, 0, 'edit-mode-background').setInteractive();
+    var submitText = this.add.image(0, 0, 'submit-text');
+
+    submitContainer = this.add.container(384, 34, [ submitBg, submitText ]);
+
+    submitBg.addListener('pointerup', loadEditVideo, this);
+
+    submitContainer.visible = false;
+
+}
+
+function goHome() {
+    window.location.reload(true);
+}
+
+function startSong(scene, retry) {
+    //console.log("Paragraph: " + this.textContent);
+    if (retry == true) {
+        noteTimings.clear(true, true);
+        incomingNotes.clear(true, true);
+        score = 0;
+        scoreText.setText('Score: ' + score);
+        player.seekTo(0);
+    }
+    else {
+        videoID = scene.lastChild.textContent;
+        var thumbnailLink = "http://img.youtube.com/vi/" + videoID + "/0.jpg";
+        thumbnailImg = document.getElementById('thumbnailImg');
+        thumbnailImg.style.visibility = 'hidden';
+        //console.log(thumbnailLink);
+        thumbnailImg.src = thumbnailLink;
+
+        player.loadVideoById(videoID);
+        //player.pauseVideo();
+        //player.seekTo(0);
+        //player.playVideo();
+        selector.style.visibility = 'hidden';
+        list.style.visibility = 'hidden';
+        scoreText.visible = true;
+        editContainer.visible = false;
+        retryContainer.visible = true;
+    }
+    generateNotes();
 
 }
 
@@ -140,12 +376,13 @@ function generateNotes() {
         .then(response => response.text())
         .then(text => beatmap = text);
 
+    //NOTE: Timeout value is important, higher timeout broke everything
     setTimeout(function(){
         var noteArray = beatmap.split("\n");
         //console.log(noteArray);
         var lastNoteIndex = noteArray.length;
 
-        for (var i = 1; i < lastNoteIndex; i++) {
+        for (var i = 2; i < lastNoteIndex - 1; i++) {
             var currentNote = noteArray[i];
             var currentNoteArray = currentNote.split(",");
             var time = currentNoteArray[0];
@@ -183,27 +420,53 @@ function generateNotes() {
             newNote.disableBody(true, true);
         });
 
-        score += 9000;
-        scoreText.setText('Score: ' + score);
-
-    }, 2000);
+    }, 500);
 }
 
 function editor ()
 {
     editMode = !editMode;
     if (editMode == true) {
-        progressBar.style.visibility = 'visible';
+        list.style.visibility = 'hidden';
+        editParagraph.style.visibility = 'visible';
+        editText.style.visibility = 'visible';
+        submitContainer.visible = true;
     }
     //If edit mode is done
     if (editMode == false) {
         exportBeatMap();
         progressBar.style.visibility = 'hidden';
+        list.style.visibility = 'visible';
+        editParagraph.style.visibility = 'hidden';
+        editText.style.visibility = 'hidden';
+        submitContainer.visible = false;
+        saveContainer.visible = false;
+        goHome();
     }
+}
+
+function loadEditVideo () {
+    videoID = editText.value;
+    //console.log(videoID);
+    //generateNotes();
+    var thumbnailLink = "http://img.youtube.com/vi/" + videoID + "/0.jpg";
+    thumbnailImg = document.getElementById('thumbnailImg');
+    thumbnailImg.style.visibility = 'hidden';
+    thumbnailImg.src = thumbnailLink;
+    player.loadVideoById(videoID);
+    selector.style.visibility = 'hidden';
+    editParagraph.style.visibility = 'hidden';
+    editText.style.visibility = 'hidden';
+    submitContainer.visible = false;
+    scoreText.visible = false;
+    progressBar.style.visibility = 'visible';
+    saveContainer.visible = true;
+
 }
 
 function exportBeatMap() {
     var allLines = videoID + '\n';
+    allLines += player.getVideoData().title + '\n';
     editorNotes.children.iterate(function (child) {
 
         child.disableBody(true, true);
@@ -259,8 +522,19 @@ var xOffset = 0;
 
 function update ()
 {
-
+    console.log(currentTime);
     progressBar.value = currentTime;
+
+    if (countdown == 0) {
+        countdownText.setText('');
+        clearInterval(interval);
+    }
+
+    if (
+        Phaser.Input.Keyboard.JustDown(p)) {
+        pauseGame(this);
+    }
+
     if (gameOver)
     {
         return;
@@ -311,8 +585,10 @@ function update ()
         }
     }
     else {
-
-        displayIncomingNotes(this);
+        //If playing
+        if (player.getPlayerState() == 1) {
+            displayIncomingNotes(this);
+        }
 
         if (noteKeyIsPressed()) {
             //Play sound effect either way
@@ -331,6 +607,8 @@ function update ()
                     //Display feedback            
                     newsprite = new feedbackSprite(this, Phaser.Display.Bounds.GetCenterX(timingChild) + 50, Phaser.Display.Bounds.GetCenterY(timingChild) - 50, 'nice');
                     newsprite.animate(this);
+                    score += 1000;
+                    scoreText.setText('Score: ' + score);
                 }
                 else {
                     //Display feedback            
@@ -349,16 +627,26 @@ function displayIncomingNotes(scene) {
     noteTimings.children.iterate(function (child) {
         var animationRunning = child.getData('animationRunning');
         if (animationRunning == false) {
-            if ( currentTime > 0.20 && Number(child.getData('time')) < (Number(currentTime) + 5)) {
+            if ( currentTime > 0 && Number(child.getData('time')) < (Number(currentTime) + 5)) {
                 child.enableBody(true, child.x, child.y, true, true);
                 var timeOffset = 0;
                 if (child.getData('time') < 5) {
                     timeOffset = 5 - Number(child.getData('time'));
+                    timeOffset *= 1000;
                 }
                 //Adjust timeout to let note fly off screen
-                setTimeout(function() {
-                    noteTimings.remove(child,true,true);
-                }, 5500 - timeOffset*1000);
+                if (timeOffset != 0) {
+                    var timer = new Timer(function() {
+                        noteTimings.remove(child,true,true);
+                    }, 5500 - timeOffset);
+                    timeouts.push(timer);
+                }
+                else {
+                    var timer = new Timer(function() {
+                        noteTimings.remove(child,true,true);
+                    }, 5000);
+                    timeouts.push(timer);
+                }
                 //console.log(child.getData('time') + 'started running at' + currentTime);
                 child.setData('animationRunning', true);
             }
@@ -377,25 +665,36 @@ function displayIncomingNotes(scene) {
         if (animationRunning == false) {
             //If note is coming in 5 seconds or less
             //Ex: note that starts at 5sec will show from 0sec
-            if ( currentTime > 0.20 && Number(child.getData('time')) < (Number(currentTime) + 5)) {
+            if ( currentTime > 0 && Number(child.getData('time')) < (Number(currentTime) + 5)) {
                 child.enableBody(true, child.x, child.y, true, true);
                 var timeOffset = 0;
                 if (child.getData('time') < 5) {
                     timeOffset = 5 - Number(child.getData('time'));
+                    timeOffset *= 1000;
+                    //console.log("TimeOffset: " + timeOffset);
                 }
                 var tween = scene.tweens.add({
                     targets: child,
                     x: (child.x - 300),
                     ease: 'Linear',
                     //Duration matches the currentTime + 5, in the if statement above
-                    duration: 4900 - timeOffset*1000,
+                    duration: 4900 - timeOffset,
                     yoyo: false,
                     repeat: 0
                 });
                 //Adjust timeout to let note fly off screen
-                setTimeout(function() {
-                    incomingNotes.remove(child,true,true);
-                }, 5500 - timeOffset*1000);
+                if (timeOffset != 0) {
+                    var timer = new Timer(function() {
+                        incomingNotes.remove(child,true,true);
+                    }, 5500 - timeOffset);
+                    timeouts.push(timer);
+                }
+                else {
+                    var timer = new Timer(function() {
+                        incomingNotes.remove(child,true,true);
+                    }, 5000);
+                    timeouts.push(timer);
+                }
                 //console.log(child.getData('time') + 'started running at' + currentTime);
                 child.setData('animationRunning', true);
             }
@@ -409,6 +708,37 @@ function displayIncomingNotes(scene) {
 
 
     });
+}
+
+function pauseGame(scene) {
+    //Pausing game
+    if (paused == false) {
+        for (var i = 0; i < timeouts.length; i++) {
+            timeouts[i].pause();
+        }
+        scene.tweens.pauseAll();
+        player.pauseVideo();
+        thumbnailImg.style.visibility = 'visible';
+    }
+    //Unpausing game
+    else {
+        thumbnailImg.style.visibility = 'hidden';
+        //3 second countdown until resuming
+        setTimeout(function() {        
+            player.playVideo();
+            scene.tweens.resumeAll();
+            for (var i = 0; i < timeouts.length; i++) {
+                timeouts[i].resume();
+            }
+        }, 3000);
+        countdown = 3;
+        countdownText = scene.add.text(400, 0, countdown, { fontSize: '32px', fill: '#000' });
+        interval = setInterval(function() {
+            countdown -= 1;
+            countdownText.setText(countdown);
+        }, 1000);
+    }
+    paused = !paused;
 }
 
 class feedbackSprite extends Phaser.GameObjects.Sprite {
@@ -434,11 +764,7 @@ class feedbackSprite extends Phaser.GameObjects.Sprite {
 }
 
 function begin() {
-    incomingNotes.children.iterate(function (child) {
-
-        });
         progressBar.max = player.getDuration();
-
 }
 
 
@@ -474,17 +800,35 @@ function onYouTubePlayerAPIReady() {
 
 
 function onPlayerReady(event) {
+    //console.log("Ready");
     event.target.mute();
     event.target.setVolume(40);
+    startInterval();
 }
 
+var firstTime = true;
 function onPlayerStateChange(event) {
+    /*
+    if (event.data == YT.PlayerState.PAUSED) {
+        console.log("Paused");
+        if (firstTime == true) {
+            player.seekTo(0);
+            firstTime = false;
+        }
+
+        //event.target.unMute();
+        //event.target.playVideo();
+    }*/
+    
     if (event.data == YT.PlayerState.PLAYING) {
+        //console.log("Started");
         event.target.unMute();
-        event.target.playVideo();
+        //event.target.unMute();
+        //event.target.playVideo();
         //Wait until video begins to start notes
         begin();
-        startInterval();
+        //startInterval();
+        //console.log(currentTime);
     }
 }
 
@@ -492,6 +836,23 @@ function startInterval() {
     checkInt = setInterval(function() {
         currentTime = player.getCurrentTime();
     }, 200);
+}
+
+function Timer(callback, delay) {
+    var timerId, start, remaining = delay;
+
+    this.pause = function() {
+        window.clearTimeout(timerId);
+        remaining -= new Date() - start;
+    };
+
+    this.resume = function() {
+        start = new Date();
+        window.clearTimeout(timerId);
+        timerId = window.setTimeout(callback, remaining);
+    };
+
+    this.resume();
 }
 
 
