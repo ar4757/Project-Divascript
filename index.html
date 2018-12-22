@@ -68,6 +68,7 @@ var editMode = false;
 var editorNotes;
 var noteTimings;
 var incomingNotes;
+var timerHands;
 var currentTime;
 var videoID;
 
@@ -116,8 +117,19 @@ function preload ()
     this.load.image('inverted-circle', 'assets/inverted-circle.png');
     this.load.image('inverted-cross', 'assets/inverted-cross.png');
     this.load.image('inverted-triangle', 'assets/inverted-triangle.png');
-    this.load.image('nice', 'assets/nice.png');
-    this.load.image('bad', 'assets/bad.png');
+    this.load.image('cool01', 'assets/cool01.png');
+    this.load.image('cool02', 'assets/cool02.png');
+    this.load.image('cool03', 'assets/cool03.png');
+    this.load.image('fine01', 'assets/fine01.png');
+    this.load.image('fine02', 'assets/fine02.png');
+    this.load.image('wrong01', 'assets/wrong01.png');
+    this.load.image('wrong02', 'assets/wrong02.png');
+    this.load.image('wrong03', 'assets/wrong03.png');
+    this.load.image('wrong04', 'assets/wrong04.png');
+    this.load.image('safe', 'assets/safe.png');
+    this.load.image('sad', 'assets/sad.png');
+    this.load.image('worst', 'assets/worst.png');
+    this.load.image('timerhand', 'assets/timerhand.png');
     this.load.image('edit-mode', 'assets/edit-mode.png');
     this.load.image('edit-mode-background', 'assets/edit-mode-background.png');
     this.load.image('save-edit', 'assets/save-edit.png');
@@ -188,6 +200,7 @@ function create ()
 
     noteTimings = this.physics.add.staticGroup();
     incomingNotes = this.physics.add.staticGroup();
+    timerHands = this.physics.add.staticGroup();
 
 
     //generateNotes();
@@ -306,6 +319,7 @@ function startSong(scene, retry) {
     if (retry == true) {
         noteTimings.clear(true, true);
         incomingNotes.clear(true, true);
+        timerHands.clear(true, true);
         score = 0;
         scoreText.setText('Score: ' + score);
         player.seekTo(0);
@@ -353,7 +367,7 @@ function generateNotes() {
 
             var name = currentNoteArray[3];
             var key = 'inverted-' + name;
-            var newNote = noteTimings.create(x, y, key);
+            var newNote = noteTimings.create(x, y, key).setScale(0.5).refreshBody();
             newNote.setData('time', time);
             newNote.setData('x', x);
             newNote.setData('y', y);
@@ -368,7 +382,21 @@ function generateNotes() {
             var y = child.getData('y');
             var name = child.getData('name');
             var key = name;
-            var newNote = incomingNotes.create(x, y, key);
+            var newNote = incomingNotes.create(x, y, key).setScale(0.5).refreshBody();
+            newNote.setData('time', time);
+            newNote.setData('x', x);
+            newNote.setData('y', y);
+            newNote.setData('name', name);
+            newNote.setData('animationRunning', false);
+            newNote.disableBody(true, true);
+
+            var time = child.getData('time');
+            var x = Number(child.getData('x'));
+            var y = child.getData('y');
+            var name = 'timerhand';
+            var key = name;
+            var newNote = timerHands.create(x, y, key).setScale(0.5).refreshBody();
+            newNote.setOrigin(0.5, 1);
             newNote.setData('time', time);
             newNote.setData('x', x);
             newNote.setData('y', y);
@@ -532,7 +560,8 @@ function update ()
                 x = 32 + xOffset;
             }
             y = y - 32;
-            var newNote = editorNotes.create(x, y, currentKey);
+
+            var newNote = editorNotes.create(x, y, currentKey).setScale(0.5).refreshBody();
             newNote.setData('x', x);
             newNote.setData('y', y);
             newNote.setData('name', currentKey);
@@ -550,31 +579,147 @@ function update ()
             this.sound.play('play-note');
             var timingChild = noteTimings.getFirst(true);
             var incomingChild = incomingNotes.getFirst(true);
-            var first = Phaser.Display.Bounds.GetCenterX(timingChild);
-            var second = Phaser.Display.Bounds.GetCenterX(incomingChild);
+            var timerChild = timerHands.getFirst(true);
+            var firstX = Phaser.Display.Bounds.GetCenterX(timingChild);
+            var firstY = Phaser.Display.Bounds.GetCenterY(timingChild);
+            var secondX = Phaser.Display.Bounds.GetCenterX(incomingChild);
+            var secondY = Phaser.Display.Bounds.GetCenterY(timingChild);
             //If timing is close enough to a note to matter
 
             //NOTE:
 
             //Currently, only hitting the correct button matters, not the exact timing
-            if (Phaser.Math.Distance.Between(0,first,0,second) < 16) {
+            var distance = Phaser.Math.Distance.Between(firstX, firstY ,secondX, secondY);
+
+            //Cool range
+            if (distance < 8) {
                 if (currentKey == timingChild.getData('name')) {
-                    //Display feedback            
-                    newsprite = new feedbackSprite(this, Phaser.Display.Bounds.GetCenterX(timingChild) + 50, Phaser.Display.Bounds.GetCenterY(timingChild) - 50, 'nice');
+                    //Display feedback     
+                    newsprite = new feedbackSprite(this, firstX + 50, firstY - 50, randomCool()).setScale(0.5);
                     newsprite.animate(this);
-                    score += 1000;
+                    score += 550;
                     scoreText.setText('Score: ' + score);
                 }
                 else {
                     //Display feedback            
-                    newsprite = new feedbackSprite(this, Phaser.Display.Bounds.GetCenterX(timingChild) + 50, Phaser.Display.Bounds.GetCenterY(timingChild) - 50, 'bad');
+                    newsprite = new feedbackSprite(this, firstX + 50, firstY - 50, 'wrong01').setScale(0.5);
                     newsprite.animate(this);
+                    score += 275;
+                    scoreText.setText('Score: ' + score);
                 }
                 //Remove note
                 noteTimings.remove(timingChild,true,true);
                 incomingNotes.remove(incomingChild,true,true);
+                timerHands.remove(timerChild,true,true);
+            }
+            //Fine range
+            else if (distance < 16) {
+                if (currentKey == timingChild.getData('name')) {
+                    //Display feedback            
+                    newsprite = new feedbackSprite(this, firstX + 50, firstY - 50, randomFine()).setScale(0.5);
+                    newsprite.animate(this);
+                    score += 330;
+                    scoreText.setText('Score: ' + score);
+                }
+                else {
+                    //Display feedback            
+                    newsprite = new feedbackSprite(this, firstX + 50, firstY - 50, 'wrong02').setScale(0.5);
+                    newsprite.animate(this);
+                    score += 165;
+                    scoreText.setText('Score: ' + score);
+                }
+                //Remove note
+                noteTimings.remove(timingChild,true,true);
+                incomingNotes.remove(incomingChild,true,true);
+                timerHands.remove(timerChild,true,true);
+            }
+            //Safe range
+            else if (distance < 24) {
+                if (currentKey == timingChild.getData('name')) {
+                    //Display feedback            
+                    newsprite = new feedbackSprite(this, firstX + 50, firstY - 50, 'safe').setScale(0.5);
+                    newsprite.animate(this);
+                    score += 110;
+                    scoreText.setText('Score: ' + score);
+                }
+                else {
+                    //Display feedback            
+                    newsprite = new feedbackSprite(this, firstX + 50, firstY - 50, 'wrong03').setScale(0.5);
+                    newsprite.animate(this);
+                    score += 55;
+                    scoreText.setText('Score: ' + score);
+                }
+                //Remove note
+                noteTimings.remove(timingChild,true,true);
+                incomingNotes.remove(incomingChild,true,true);
+                timerHands.remove(timerChild,true,true);
+            }
+            //Sad range
+            else if (distance < 32) {
+                if (currentKey == timingChild.getData('name')) {
+                    //Display feedback            
+                    newsprite = new feedbackSprite(this, firstX + 50, firstY - 50, 'sad').setScale(0.5);
+                    newsprite.animate(this);
+                    score += 55;
+                    scoreText.setText('Score: ' + score);
+                }
+                else {
+                    //Display feedback            
+                    newsprite = new feedbackSprite(this, firstX + 50, firstY - 50, 'wrong04').setScale(0.5);
+                    newsprite.animate(this);
+                    score += 33;
+                    scoreText.setText('Score: ' + score);
+                }
+                //Remove note
+                noteTimings.remove(timingChild,true,true);
+                incomingNotes.remove(incomingChild,true,true);
+                timerHands.remove(timerChild,true,true);
+            }
+            //Worst range
+            else if (distance < 40) {
+                if (currentKey == timingChild.getData('name')) {
+                    //Display feedback            
+                    newsprite = new feedbackSprite(this, firstX + 50, firstY - 50, 'worst').setScale(0.5);
+                    newsprite.animate(this);
+                    score += 0;
+                    scoreText.setText('Score: ' + score);
+                }
+                else {
+                    //Display feedback            
+                    newsprite = new feedbackSprite(this, firstX + 50, firstY - 50, 'worst').setScale(0.5);
+                    newsprite.animate(this);
+                    score += 0;
+                    scoreText.setText('Score: ' + score);
+                }
+                //Remove note
+                noteTimings.remove(timingChild,true,true);
+                incomingNotes.remove(incomingChild,true,true);
+                timerHands.remove(timerChild,true,true);
             }
         }
+    }
+}
+
+function randomCool() {
+    var rand = Math.floor((Math.random() * 3) + 1);
+    if (rand == 1) {
+        return 'cool01';
+    }
+    else if (rand == 2) {
+        return 'cool02';
+    }
+    else {
+        return 'cool03';
+    }
+}
+
+function randomFine() {
+    var rand = Math.floor((Math.random() * 2) + 1);
+    if (rand == 1) {
+        return 'fine01';
+    }
+    else {
+        return 'fine02';
     }
 }
 
@@ -589,11 +734,12 @@ function displayIncomingNotes(scene) {
                     timeOffset = 5 - Number(child.getData('time'));
                     timeOffset *= 1000;
                 }
+
                 //Adjust timeout to let note fly off screen
                 if (timeOffset != 0) {
                     var timer = new Timer(function() {
                         noteTimings.remove(child,true,true);
-                    }, 5500 - timeOffset);
+                    }, 5000 - timeOffset);
                     timeouts.push(timer);
                 }
                 else {
@@ -625,7 +771,7 @@ function displayIncomingNotes(scene) {
                     x: (child.x - 300),
                     ease: 'Linear',
                     //Duration matches the currentTime + 5, in the if statement above
-                    duration: 4900 - timeOffset,
+                    duration: 4950 - timeOffset,
                     yoyo: false,
                     repeat: 0
                 });
@@ -633,12 +779,51 @@ function displayIncomingNotes(scene) {
                 if (timeOffset != 0) {
                     var timer = new Timer(function() {
                         incomingNotes.remove(child,true,true);
-                    }, 5500 - timeOffset);
+                    }, 5000 - timeOffset);
                     timeouts.push(timer);
                 }
                 else {
                     var timer = new Timer(function() {
                         incomingNotes.remove(child,true,true);
+                    }, 5000);
+                    timeouts.push(timer);
+                }
+                child.setData('animationRunning', true);
+            }
+        }
+    });
+
+    timerHands.children.iterate(function (child) {
+        var animationRunning = child.getData('animationRunning');
+        if (animationRunning == false) {
+            //If note is coming in 5 seconds or less
+            //Ex: note that starts at 5sec will show from 0sec
+            if ( currentTime > 0 && Number(child.getData('time')) < (Number(currentTime) + 5)) {
+                child.enableBody(true, child.x, child.y, true, true);
+                var timeOffset = 0;
+                if (child.getData('time') < 5) {
+                    timeOffset = 5 - Number(child.getData('time'));
+                    timeOffset *= 1000;
+                }
+                var tween = scene.tweens.add({
+                    targets: child,
+                    angle: 360,
+                    ease: 'Linear',
+                    //Duration matches the currentTime + 5, in the if statement above
+                    duration: 4950 - timeOffset,
+                    yoyo: false,
+                    repeat: 0
+                });
+                //Adjust timeout to let note fly off screen
+                if (timeOffset != 0) {
+                    var timer = new Timer(function() {
+                        timerHands.remove(child,true,true);
+                    }, 5000 - timeOffset);
+                    timeouts.push(timer);
+                }
+                else {
+                    var timer = new Timer(function() {
+                        timerHands.remove(child,true,true);
                     }, 5000);
                     timeouts.push(timer);
                 }
@@ -754,7 +939,7 @@ function onPlayerStateChange(event) {
 function startInterval() {
     checkInt = setInterval(function() {
         currentTime = player.getCurrentTime();
-    }, 200);
+    }, 5);
 }
 
 function Timer(callback, delay) {
