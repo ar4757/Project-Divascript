@@ -13,6 +13,7 @@
     <script src="//cdn.jsdelivr.net/npm/phaser@3.15.1/dist/phaser.js"></script>
     <script src="https://www.youtube.com/player_api"></script>
    <link rel="stylesheet" href="fonts.css" />
+   <link rel="stylesheet" href="waves.css" />
     <style type="text/css">
         body {
             margin: 0;
@@ -22,14 +23,28 @@
 </head>
 <body>
 
+<!--filter: blur(64px); -webkit-filter: blur(64px)-->
+
 <div class="wrapper" style="position: relative;">
     <div id="player" style="pointer-events: none;z-index:-10";></div>
 
-    <div id="progress" style="z-index:50";></div>
+    <div id="progress" style="z-index:120";></div>
 
-    <div id="container" style="position: absolute; top: 0; left: 0; z-index:10"></div>
+    <div id="container" style="position: absolute; top: 0; left: 0; z-index:100"></div>
 
-    <div id="selector" style="position: absolute; overflow: scroll; width: 800px; height: 472px; background-color: #33b0ec; top: 64px; left: 0; z-index:20"></div> 
+    <div id="selector" style="pointer-events: none; position: absolute; overflow: scroll; width: 800px; height: 472px; top: 64px; left: 0; z-index:90">
+        <img src="assets/songselect-bg.png" style="position: fixed">
+        <img src="assets/hexa-violet.png" style="position: fixed; left: 300px; top: 100px; opacity: 0.5; width: 462px; height: 396px; filter: blur(64px); -webkit-filter: blur(64px)">
+        <img src="assets/hexa-cyan.png" style="position: fixed; left: 644px; top: 296px; opacity: 0.5; width: 462px; height: 396px; filter: blur(64px); -webkit-filter: blur(64px)">
+        <img src="assets/hexa-mint.png" style="position: fixed; left: 644px; bottom: 300px; opacity: 0.5; width: 462px; height: 396px; filter: blur(64px); -webkit-filter: blur(64px)">
+        <img src="assets/bg-ring.png" style="position: fixed; left: 200px; bottom: 120px; opacity: 0.5; transform: rotate(10deg); filter: blur(2px); -webkit-filter: blur(2px)">
+        <img src="assets/hexa-rainbow.png" style="position: fixed; right: 300px; top: 300px; opacity: 0.5; transform: scale(0.5, 0.5)">
+        <img src="assets/bg-line.png" style="position: fixed; left: 0px; top: 300px; opacity: 0.5; animation-name: firstWave; animation-duration: 2s; animation-delay: 0s; animation-timing-function: linear; animation-fill-mode: forwards">
+        <img src="assets/bg-line.png" style="position: fixed; left: 1014px; top: 300px; opacity: 0.5; animation-name: leftWave; animation-duration: 4s; animation-delay: 2s; animation-timing-function: linear; animation-iteration-count: infinite">
+        <img src="assets/bg-line.png" style="position: fixed; left: 1014px; top: 300px; opacity: 0.5; transform: scaleX(-1); animation-name: rightWave; animation-duration: 4s; animation-delay: 0s;animation-timing-function: linear; animation-iteration-count: infinite">
+    </div> 
+
+    <div style="font-family: icomoon; position:absolute; left:-1000px; visibility:hidden;">.</div>
 
     <img id="thumbnailImg" style="position: absolute; width: 800px; height: 472px;top: 64px; left: 0; z-index: 15; object-fit: cover">
 </div>
@@ -57,7 +72,8 @@ var config = {
 };
 
 var player;
-var bars;
+var header;
+var footer;
 var cursors;
 var score = 0;
 var gameOver = false;
@@ -97,8 +113,6 @@ var editParagraph;
 
 var homeContainer;
 
-var retryContainer;
-
 var timeouts = [];
 
 var countdown;
@@ -106,6 +120,21 @@ var countdown;
 var countdownText;
 
 var interval;
+
+var thumbImg;
+
+var listIndex = 0;
+
+var fireEvent = true;
+var newDelta, oldDelta, eventTimeout;
+newDelta = oldDelta = eventTimeout = null;
+
+var duration = 2;
+
+var bgd;
+var fgd;
+
+var pauseContainer;
 
 function preload ()
 {
@@ -139,25 +168,65 @@ function preload ()
     this.load.image('retry', 'assets/retry.png');
     this.load.image('songselect-foreground', 'assets/songselect-foreground.png');
     this.load.image('songselect-background', 'assets/songselect-background.png');
-    this.load.audio('play-note', 'sound/play-note.mp3');
+    this.load.image('songselect-other', 'assets/songselect-other.png');
+    this.load.image('songselect-bg', 'assets/songselect-bg.png');
+    this.load.audio('button1', 'sound/button1.wav');
+    this.load.audio('music-selector-select', 'sound/music-selector-select.wav');
+    this.load.audio('music-selector-enter', 'sound/music-selector-enter.wav');
+    this.load.audio('bgm', 'sound/bgm.wav');
+
+    this.load.image('header-left', 'assets/header-left.png');
+    this.load.image('header-right', 'assets/header-right.png');
+
+    this.load.image('game01', 'assets/game01.png');
+    this.load.image('game02', 'assets/game02.png');
+
+    this.load.image('edit01', 'assets/edit01.png');
+    this.load.image('edit02', 'assets/edit02.png');
+
+    this.load.image('footer-black', 'assets/footer-black.png');
+
+    this.load.image('footer-blue', 'assets/footer-blue.png');
+    this.load.image('footer-green', 'assets/footer-green.png');
+
+    this.load.image('footer-controls', 'assets/footer-controls.png');
+
+    this.load.image('pause-plate', 'assets/pause-plate.png');
 }
 
 function create ()
 {
 
-    bars = this.physics.add.staticGroup();
+    this.sound.setVolume(0.25);
 
-    bars.create(400, 568, 'bar');
-    bars.create(400, 32, 'bar');
+    this.sound.play('bgm');
 
+    header = this.physics.add.staticGroup();
 
-    //Edit Mode
-    var bg = this.add.image(0, 0, 'edit-mode-background').setInteractive();
-    var text = this.add.image(0, 0, 'edit-mode');
+    header.create(310, 32, 'header-left');
+    header.create(336 + 330, 32, 'header-right');
 
-    editContainer = this.add.container(700, 34, [ bg, text ]);
+    footer = this.physics.add.staticGroup();
 
-    bg.addListener('pointerup', editor, this);
+    footer.create(400, 568, 'footer-black');
+
+    footer.create(300, 568, 'footer-controls').setScale(0.5);
+
+    footer.create(200, 568, 'footer-green').setScale(0.38);
+
+    var game01 = this.add.image(0, 0, 'game01').setScale(0.25).setInteractive();
+    var game02 = this.add.image(0, 0, 'game02').setScale(0.25);
+
+    var gameContainer = this.add.container(150, 568, [ game01, game02 ]);
+
+    game01.addListener('pointerup', goHome, this);
+
+    var edit01 = this.add.image(0, 0, 'edit01').setScale(0.25).setInteractive();
+    var edit02 = this.add.image(0, 0, 'edit02').setScale(0.25);
+
+    var editContainer = this.add.container(250, 568, [ edit01, edit02 ]);
+
+    edit01.addListener('pointerup', editor, this);
 
     var saveBg = this.add.image(0, 0, 'edit-mode-background').setInteractive();
     var saveText = this.add.image(0, 0, 'save-edit');
@@ -168,21 +237,14 @@ function create ()
 
     saveContainer.visible = false;
 
-    var homeBg = this.add.image(0, 0, 'edit-mode-background').setInteractive();
-    var homeText = this.add.image(0, 0, 'home');
+    var pauseBg = this.add.image(0, 0, 'pause-plate').setInteractive();
+    var pauseText = this.add.text(-50, -10, 'RETRY', { fontFamily: 'icomoon', fontSize: '32px', fill: '#000000'});
 
-    homeContainer = this.add.container(544, 34, [ homeBg, homeText ]);
+    pauseContainer = this.add.container(400, 300, [ pauseBg, pauseText ]);
 
-    homeBg.addListener('pointerup', goHome, this);
+    pauseBg.addListener('pointerup', function() {pauseGame(this); startSong(this, true);}, this);
 
-    var retryBg = this.add.image(0, 0, 'edit-mode-background').setInteractive();
-    var retryText = this.add.image(0, 0, 'retry');
-
-    retryContainer = this.add.container(700, 34, [ retryBg, retryText ]);
-
-    retryBg.addListener('pointerup', function() {startSong(this, true);}, this);
-
-    retryContainer.visible = false;
+    pauseContainer.visible = false;
 
     //  Input Events
     cursors = this.input.keyboard.createCursorKeys();
@@ -195,7 +257,7 @@ function create ()
     p = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.P);
 
     //  The score
-    scoreText = this.add.text(16, 16, 'Score: 0', { fontSize: '32px', fill: '#000' });
+    scoreText = this.add.text(16, 16, 'Score: 0', { fontSize: '32px', fill: '#FFFFFF' });
 
     scoreText.visible = false;
 
@@ -252,38 +314,42 @@ function create ()
             for (var i = 0; i < songList.length; i++) {
                 var array = songList[i].split(/-(.+)/);
                 var currentVideoID = array[0];
-                var currentTitle = array[1];
+                var currentTitle = array[1].substr(0,34);
 
-                var thumbImg = document.createElement("img");
-                thumbImg.src = "http://img.youtube.com/vi/" + currentVideoID + "/0.jpg";
-                thumbImg.style.width = '288px';
-                thumbImg.style.height = '192px';
-                thumbImg.style.float = 'right';
-                thumbImg.style.objectFit = 'contain';
-
-                var bgd = document.createElement("img");
+                /*var bgd = document.createElement("img");
                 bgd.src = "assets/songselect-background.png";
                 bgd.style.width = '460px';
                 bgd.style.height = '90px';
                 bgd.style.float = 'left';
                 bgd.style.objectFit = 'contain';
                 bgd.style.position = 'absolute';
-                bgd.style.zIndex = '-30';
+                bgd.style.zIndex = '-30';*/
 
-                var fgd = document.createElement("img");
+                /*var fgd = document.createElement("img");
                 fgd.src = "assets/songselect-foreground.png";
                 fgd.style.width = '460px';
                 fgd.style.height = '90px';
                 fgd.style.float = 'left';
-                fgd.style.objectFit = 'contain';
+                fgd.style.objectFit = 'contain';*/
+
+                var other = document.createElement("img");
+                other.src = "assets/songselect-other.png";
+                other.style.width = '460px';
+                other.style.height = '90px';
+                other.style.float = 'left';
+                other.style.objectFit = 'contain';
+                other.style.position = 'absolute';
+                other.style.zIndex = '10';
 
                 var textContainer = document.createElement("div");
+                textContainer.style.height = '16px';
                 textContainer.style.position = 'relative';
-                textContainer.style.bottom = '60px';
-                textContainer.style.left = '80px';
+                textContainer.style.top = '30px';
+                textContainer.style.left = '106px';
                 textContainer.style.fontFamily = 'icomoon';
                 textContainer.style.color = 'white';
                 textContainer.style.letterSpacing = '-8px';
+                textContainer.style.zIndex = '30';
 
                 var videoIDContainer = document.createElement("div");
                 videoIDContainer.style.position = 'relative';
@@ -291,9 +357,7 @@ function create ()
                 videoIDContainer.style.left = '70px';
                 videoIDContainer.style.visibility = 'hidden';
 
-                //var titlelabelnode = document.createTextNode("Title: ");
                 var titletextnode = document.createTextNode(currentTitle);
-                //textContainer.appendChild(titlelabelnode);
                 textContainer.appendChild(titletextnode);
                 var br = document.createElement("br");
                 var idlabelnode = document.createTextNode("Video ID: ");
@@ -301,18 +365,197 @@ function create ()
                 videoIDContainer.appendChild(idlabelnode);
                 videoIDContainer.appendChild(idtextnode);
                 var paragraph = document.createElement('P');
-                paragraph.style.marginBottom = '80px';
-                paragraph.appendChild(thumbImg);
-                paragraph.appendChild(bgd);
-                paragraph.appendChild(fgd);
+                paragraph.style.marginBottom = '-14px';
+                paragraph.appendChild(other);
                 paragraph.appendChild(textContainer);
                 paragraph.appendChild(br);
                 paragraph.appendChild(videoIDContainer);
-                paragraph.addEventListener("click", function() {startSong(this, false);});
+                //paragraph.addEventListener("click", function() {startSong(this, false);});
                 list.appendChild(paragraph);
             }
 
             selector.appendChild(list);
+
+            thumbImg = document.createElement("img");
+                listIndex = 0;
+                videoID = list.children[listIndex].lastChild.lastChild.textContent;
+                console.log("VideoID Length: " + videoID.length);
+                if (videoID.length > 11) {
+                    videoID = videoID.substr(0, 11);
+                    console.log("New VideoID Length: " + videoID.length);
+                }
+                thumbImg.src = "http://img.youtube.com/vi/" + videoID + "/0.jpg";
+                thumbImg.style.position = 'fixed';
+                thumbImg.style.top = '120px';
+                thumbImg.style.left = '500px';
+                thumbImg.style.width = '288px';
+                thumbImg.style.height = '192px';
+                thumbImg.style.float = 'right';
+                thumbImg.style.objectFit = 'contain';
+
+            selector.appendChild(thumbImg);
+
+            bgd = document.createElement("img");
+                bgd.src = "assets/songselect-background.png";
+                bgd.style.width = '460px';
+                bgd.style.height = '90px';
+                bgd.style.float = 'left';
+                bgd.style.objectFit = 'contain';
+                bgd.style.position = 'fixed';
+                bgd.style.top = '144px';
+                bgd.style.left = '30px';
+                bgd.style.zIndex = '15';
+
+            fgd = document.createElement("img");
+                fgd.src = "assets/songselect-foreground.png";
+                fgd.style.width = '460px';
+                fgd.style.height = '90px';
+                fgd.style.float = 'left';
+                fgd.style.objectFit = 'contain';
+                fgd.style.position = 'fixed';
+                fgd.style.top = '144px';
+                fgd.style.left = '30px';
+                fgd.style.zIndex = '15';
+
+            selector.appendChild(bgd);
+            selector.appendChild(fgd);
+
+            var scrollPadding = "";
+            scrollPadding = list.offsetHeight + 354;
+            scrollPadding += "px";
+
+            list.style.height = scrollPadding;
+
+
+            document.addEventListener('keydown', function (e) {
+                //console.log(e.which);
+                switch (e.which) {
+                    case 13:
+                        //If in main menu (i.e. no video is ready)
+                        if (player.getPlayerState() == 5) {
+                            startSong(this, false);
+                        }
+                        break;
+                    case 38:
+                        if (player.getPlayerState() == 5) {
+                            scrollUp();
+                        }
+                        break;
+                    case 40:
+                        if (player.getPlayerState() == 5) {
+                            scrollDown();
+                        }
+                        break;
+                }
+            });
+
+            //IE, Chrome, Safari, Opera
+            document.addEventListener('mousewheel', function (e) {
+                var e = window.event || e;
+                var delta = Math.max(-1, Math.min(1, (e.wheelDelta || -e.detail)));
+                //var delta = e.wheelDelta || -e.detail;
+                e.preventDefault();
+                console.log(delta);
+
+                if (!fireEvent) return;
+                
+                if (player.getPlayerState() != 5) {
+                    return;
+                }
+
+                newDelta = delta;
+
+                if(oldDelta!=null&&oldDelta*newDelta>0){
+                    if (delta > 0) {
+                        //console.log(delta);
+                        scrollUp();
+                    }
+                    if (delta < 0) {
+                        //console.log(delta);
+                        scrollDown();
+                    }
+                    fireEvent = false;
+                    clearTimeout(eventTimeout);
+                    eventTimeout = setTimeout(function(){fireEvent = true},200);
+                }
+                oldDelta = newDelta;
+            });
+
+            //Firefox
+            document.addEventListener('DOMMouseScroll', function (e) {
+                var e = window.event || e;
+                var delta = Math.max(-1, Math.min(1, (e.wheelDelta || -e.detail)));
+                //var delta = e.wheelDelta || -e.detail;
+                e.preventDefault();
+                console.log(delta);
+
+                if (!fireEvent) return;
+                
+                newDelta = delta;
+
+                if(oldDelta!=null&&oldDelta*newDelta>0){
+                    if (delta > 0) {
+                        //console.log(delta);
+                        scrollUp();
+                    }
+                    if (delta < 0) {
+                        //console.log(delta);
+                        scrollDown();
+                    }
+                    fireEvent = false;
+                    clearTimeout(eventTimeout);
+                    eventTimeout = setTimeout(function(){fireEvent = true},200);
+                }
+                oldDelta = newDelta;
+            });
+
+            document.addEventListener("click", function (e) {
+                var e = window.event || e;
+                var y = event.clientY;
+                console.log("Y: " + y);
+                if (player.getPlayerState() == 5) {
+                    if (y >= 56) {
+                        if (y <= 156) {
+                            e.stopPropagation();
+                            scrollUp();
+                        }
+                        if (y <= 106) {
+                            e.stopPropagation();
+                            scrollUp();
+                        }
+                    }
+                    if (y > 156 && y < 226) {
+                        startSong(this, false);
+                    }
+                    if (y <= 516) {
+                        if (y >= 226) {
+                            e.stopPropagation()
+                            scrollDown();
+                        }
+                        if (y >= 276) {
+                            e.stopPropagation()
+                            scrollDown();
+                        }
+                        if (y >= 326) {
+                            e.stopPropagation()
+                            scrollDown();
+                        }
+                        if (y >= 376) {
+                            e.stopPropagation()
+                            scrollDown();
+                        }
+                        if (y >= 426) {
+                            e.stopPropagation()
+                            scrollDown();
+                        }
+                        if (y >= 476) {
+                            e.stopPropagation()
+                            scrollDown();
+                        }
+                    }
+                }
+            }, true);
+
 
     }, 500);
 
@@ -345,6 +588,52 @@ function create ()
 
 }
 
+function scrollUp() {
+    if (listIndex == 0) {
+        console.log("TO BOTTOM");
+        selector.scrollTop = 54*list.children.length;
+        listIndex = list.children.length - 1;
+    }
+    else {
+        console.log("UP");
+        selector.scrollTop -= 54;
+        if (listIndex > 0) {
+            listIndex -= 1;
+        }
+    }
+    videoID = list.children[listIndex].lastChild.lastChild.textContent;
+    console.log("VideoID Length: " + videoID);
+    if (videoID.length > 11) {
+        videoID = videoID.substr(0, 11);
+        console.log("New VideoID Length: " + videoID);
+    }
+    thumbImg.src = "http://img.youtube.com/vi/" + videoID + "/0.jpg";
+    game.sound.play('music-selector-select');
+}
+
+function scrollDown() {
+    if (listIndex == list.children.length - 1) {
+        console.log("TO TOP");
+        selector.scrollTop = 0;
+        listIndex = 0;
+    }
+    else {
+        console.log("DOWN");
+        selector.scrollTop += 54;
+        if (listIndex < list.children.length - 1) {
+            listIndex += 1;
+        }
+    }
+    videoID = list.children[listIndex].lastChild.lastChild.textContent;
+    console.log("VideoID Length: " + videoID);
+    if (videoID.length > 11) {
+        videoID = videoID.substr(0, 11);
+        console.log("New VideoID Length: " + videoID);
+    }
+    thumbImg.src = "http://img.youtube.com/vi/" + videoID + "/0.jpg";
+    game.sound.play('music-selector-select');
+}
+
 function goHome() {
     window.location.reload(true);
 }
@@ -359,12 +648,7 @@ function startSong(scene, retry) {
         player.seekTo(0);
     }
     else {
-        videoID = scene.lastChild.lastChild.textContent;
-        console.log("VideoID Length: " + videoID.length);
-        if (videoID.length > 11) {
-            videoID = videoID.substr(0, 11);
-            console.log("New VideoID Length: " + videoID.length);
-        }
+        game.sound.stopAll();
         var thumbnailLink = "http://img.youtube.com/vi/" + videoID + "/0.jpg";
         thumbnailImg = document.getElementById('thumbnailImg');
         thumbnailImg.style.visibility = 'hidden';
@@ -373,9 +657,9 @@ function startSong(scene, retry) {
         selector.style.visibility = 'hidden';
         list.style.visibility = 'hidden';
         scoreText.visible = true;
-        editContainer.visible = false;
-        retryContainer.visible = true;
+        //editContainer.visible = false;
     }
+    game.sound.play('music-selector-enter');
     generateNotes();
 
 }
@@ -444,18 +728,24 @@ function generateNotes() {
 
 function editor ()
 {
-    editMode = !editMode;
-    if (editMode == true) {
+    //It was not edit mode
+    if (editMode == false) {
+        game.sound.stopAll();
         list.style.visibility = 'hidden';
+        bgd.style.visibility = 'hidden';
+        fgd.style.visibility = 'hidden';
         editParagraph.style.visibility = 'visible';
         editText.style.visibility = 'visible';
         submitContainer.visible = true;
+        thumbImg.style.visibility = 'hidden';
     }
-    //If edit mode is done
-    if (editMode == false) {
+    //It was edit mode
+    if (editMode == true) {
         exportBeatMap();
         progressBar.style.visibility = 'hidden';
         list.style.visibility = 'visible';
+        bgd.style.visibility = 'visible';
+        fgd.style.visibility = 'visible';
         editParagraph.style.visibility = 'hidden';
         editText.style.visibility = 'hidden';
         submitContainer.visible = false;
@@ -465,6 +755,7 @@ function editor ()
 }
 
 function loadEditVideo () {
+    editMode = !editMode;
     videoID = editText.value;
     var thumbnailLink = "http://img.youtube.com/vi/" + videoID + "/0.jpg";
     thumbnailImg = document.getElementById('thumbnailImg');
@@ -606,129 +897,129 @@ function update ()
         //If playing
         if (player.getPlayerState() == 1) {
             displayIncomingNotes(this);
-        }
 
-        if (noteKeyIsPressed()) {
-            //Play sound effect either way
-            this.sound.play('play-note');
-            var timingChild = noteTimings.getFirst(true);
-            var incomingChild = incomingNotes.getFirst(true);
-            var timerChild = timerHands.getFirst(true);
-            var firstX = Phaser.Display.Bounds.GetCenterX(timingChild);
-            var firstY = Phaser.Display.Bounds.GetCenterY(timingChild);
-            var secondX = Phaser.Display.Bounds.GetCenterX(incomingChild);
-            var secondY = Phaser.Display.Bounds.GetCenterY(timingChild);
-            //If timing is close enough to a note to matter
+            if (noteKeyIsPressed()) {
+                //Play sound effect either way
+                this.sound.play('button1');
+                var timingChild = noteTimings.getFirst(true);
+                var incomingChild = incomingNotes.getFirst(true);
+                var timerChild = timerHands.getFirst(true);
+                var firstX = Phaser.Display.Bounds.GetCenterX(timingChild);
+                var firstY = Phaser.Display.Bounds.GetCenterY(timingChild);
+                var secondX = Phaser.Display.Bounds.GetCenterX(incomingChild);
+                var secondY = Phaser.Display.Bounds.GetCenterY(timingChild);
+                //If timing is close enough to a note to matter
 
-            //NOTE:
+                //NOTE:
 
-            //Currently, only hitting the correct button matters, not the exact timing
-            var distance = Phaser.Math.Distance.Between(firstX, firstY ,secondX, secondY);
+                //Currently, only hitting the correct button matters, not the exact timing
+                var distance = Phaser.Math.Distance.Between(firstX, firstY ,secondX, secondY);
 
-            //Cool range
-            if (distance < 8) {
-                if (currentKey == timingChild.getData('name')) {
-                    //Display feedback     
-                    newsprite = new feedbackSprite(this, firstX + 50, firstY - 50, randomCool()).setScale(0.25);
-                    newsprite.animate(this);
-                    score += 550;
-                    scoreText.setText('Score: ' + score);
+                //Cool range
+                if (distance < 8) {
+                    if (currentKey == timingChild.getData('name')) {
+                        //Display feedback     
+                        newsprite = new feedbackSprite(this, firstX + 50, firstY - 50, randomCool()).setScale(0.25);
+                        newsprite.animate(this);
+                        score += 550;
+                        scoreText.setText('Score: ' + score);
+                    }
+                    else {
+                        //Display feedback            
+                        newsprite = new feedbackSprite(this, firstX + 50, firstY - 50, 'wrong01').setScale(0.25);
+                        newsprite.animate(this);
+                        score += 275;
+                        scoreText.setText('Score: ' + score);
+                    }
+                    //Remove note
+                    noteTimings.remove(timingChild,true,true);
+                    incomingNotes.remove(incomingChild,true,true);
+                    timerHands.remove(timerChild,true,true);
                 }
-                else {
-                    //Display feedback            
-                    newsprite = new feedbackSprite(this, firstX + 50, firstY - 50, 'wrong01').setScale(0.25);
-                    newsprite.animate(this);
-                    score += 275;
-                    scoreText.setText('Score: ' + score);
+                //Fine range
+                else if (distance < 16) {
+                    if (currentKey == timingChild.getData('name')) {
+                        //Display feedback            
+                        newsprite = new feedbackSprite(this, firstX + 50, firstY - 50, randomFine()).setScale(0.25);
+                        newsprite.animate(this);
+                        score += 330;
+                        scoreText.setText('Score: ' + score);
+                    }
+                    else {
+                        //Display feedback            
+                        newsprite = new feedbackSprite(this, firstX + 50, firstY - 50, 'wrong02').setScale(0.25);
+                        newsprite.animate(this);
+                        score += 165;
+                        scoreText.setText('Score: ' + score);
+                    }
+                    //Remove note
+                    noteTimings.remove(timingChild,true,true);
+                    incomingNotes.remove(incomingChild,true,true);
+                    timerHands.remove(timerChild,true,true);
                 }
-                //Remove note
-                noteTimings.remove(timingChild,true,true);
-                incomingNotes.remove(incomingChild,true,true);
-                timerHands.remove(timerChild,true,true);
-            }
-            //Fine range
-            else if (distance < 16) {
-                if (currentKey == timingChild.getData('name')) {
-                    //Display feedback            
-                    newsprite = new feedbackSprite(this, firstX + 50, firstY - 50, randomFine()).setScale(0.25);
-                    newsprite.animate(this);
-                    score += 330;
-                    scoreText.setText('Score: ' + score);
+                //Safe range
+                else if (distance < 24) {
+                    if (currentKey == timingChild.getData('name')) {
+                        //Display feedback            
+                        newsprite = new feedbackSprite(this, firstX + 50, firstY - 50, 'safe').setScale(0.25);
+                        newsprite.animate(this);
+                        score += 110;
+                        scoreText.setText('Score: ' + score);
+                    }
+                    else {
+                        //Display feedback            
+                        newsprite = new feedbackSprite(this, firstX + 50, firstY - 50, 'wrong03').setScale(0.25);
+                        newsprite.animate(this);
+                        score += 55;
+                        scoreText.setText('Score: ' + score);
+                    }
+                    //Remove note
+                    noteTimings.remove(timingChild,true,true);
+                    incomingNotes.remove(incomingChild,true,true);
+                    timerHands.remove(timerChild,true,true);
                 }
-                else {
-                    //Display feedback            
-                    newsprite = new feedbackSprite(this, firstX + 50, firstY - 50, 'wrong02').setScale(0.25);
-                    newsprite.animate(this);
-                    score += 165;
-                    scoreText.setText('Score: ' + score);
+                //Sad range
+                else if (distance < 32) {
+                    if (currentKey == timingChild.getData('name')) {
+                        //Display feedback            
+                        newsprite = new feedbackSprite(this, firstX + 50, firstY - 50, 'sad').setScale(0.25);
+                        newsprite.animate(this);
+                        score += 55;
+                        scoreText.setText('Score: ' + score);
+                    }
+                    else {
+                        //Display feedback            
+                        newsprite = new feedbackSprite(this, firstX + 50, firstY - 50, 'wrong04').setScale(0.25);
+                        newsprite.animate(this);
+                        score += 33;
+                        scoreText.setText('Score: ' + score);
+                    }
+                    //Remove note
+                    noteTimings.remove(timingChild,true,true);
+                    incomingNotes.remove(incomingChild,true,true);
+                    timerHands.remove(timerChild,true,true);
                 }
-                //Remove note
-                noteTimings.remove(timingChild,true,true);
-                incomingNotes.remove(incomingChild,true,true);
-                timerHands.remove(timerChild,true,true);
-            }
-            //Safe range
-            else if (distance < 24) {
-                if (currentKey == timingChild.getData('name')) {
-                    //Display feedback            
-                    newsprite = new feedbackSprite(this, firstX + 50, firstY - 50, 'safe').setScale(0.25);
-                    newsprite.animate(this);
-                    score += 110;
-                    scoreText.setText('Score: ' + score);
-                }
-                else {
-                    //Display feedback            
-                    newsprite = new feedbackSprite(this, firstX + 50, firstY - 50, 'wrong03').setScale(0.25);
-                    newsprite.animate(this);
-                    score += 55;
-                    scoreText.setText('Score: ' + score);
-                }
-                //Remove note
-                noteTimings.remove(timingChild,true,true);
-                incomingNotes.remove(incomingChild,true,true);
-                timerHands.remove(timerChild,true,true);
-            }
-            //Sad range
-            else if (distance < 32) {
-                if (currentKey == timingChild.getData('name')) {
-                    //Display feedback            
-                    newsprite = new feedbackSprite(this, firstX + 50, firstY - 50, 'sad').setScale(0.25);
-                    newsprite.animate(this);
-                    score += 55;
-                    scoreText.setText('Score: ' + score);
-                }
-                else {
-                    //Display feedback            
-                    newsprite = new feedbackSprite(this, firstX + 50, firstY - 50, 'wrong04').setScale(0.25);
-                    newsprite.animate(this);
-                    score += 33;
-                    scoreText.setText('Score: ' + score);
-                }
-                //Remove note
-                noteTimings.remove(timingChild,true,true);
-                incomingNotes.remove(incomingChild,true,true);
-                timerHands.remove(timerChild,true,true);
-            }
-            //Worst range
-            else if (distance < 40) {
-                if (currentKey == timingChild.getData('name')) {
-                    //Display feedback            
-                    newsprite = new feedbackSprite(this, firstX + 50, firstY - 50, 'worst').setScale(0.25);
-                    newsprite.animate(this);
-                    score += 0;
-                    scoreText.setText('Score: ' + score);
-                }
-                else {
-                    //Display feedback            
-                    newsprite = new feedbackSprite(this, firstX + 50, firstY - 50, 'worst').setScale(0.25);
-                    newsprite.animate(this);
-                    score += 0;
-                    scoreText.setText('Score: ' + score);
-                }
-                //Remove note
-                noteTimings.remove(timingChild,true,true);
-                incomingNotes.remove(incomingChild,true,true);
-                timerHands.remove(timerChild,true,true);
+                //Worst range
+                else if (distance < 40) {
+                    if (currentKey == timingChild.getData('name')) {
+                        //Display feedback            
+                        newsprite = new feedbackSprite(this, firstX + 50, firstY - 50, 'worst').setScale(0.25);
+                        newsprite.animate(this);
+                        score += 0;
+                        scoreText.setText('Score: ' + score);
+                    }
+                    else {
+                        //Display feedback            
+                        newsprite = new feedbackSprite(this, firstX + 50, firstY - 50, 'worst').setScale(0.25);
+                        newsprite.animate(this);
+                        score += 0;
+                        scoreText.setText('Score: ' + score);
+                    }
+                    //Remove note
+                    noteTimings.remove(timingChild,true,true);
+                    incomingNotes.remove(incomingChild,true,true);
+                    timerHands.remove(timerChild,true,true);
+                    }
             }
         }
     }
@@ -761,11 +1052,11 @@ function displayIncomingNotes(scene) {
     noteTimings.children.iterate(function (child) {
         var animationRunning = child.getData('animationRunning');
         if (animationRunning == false) {
-            if ( currentTime > 0 && Number(child.getData('time')) < (Number(currentTime) + 5)) {
+            if ( currentTime > 0 && Number(child.getData('time')) < (Number(currentTime) + duration)) {
                 child.enableBody(true, child.x, child.y, true, true);
                 var timeOffset = 0;
-                if (child.getData('time') < 5) {
-                    timeOffset = 5 - Number(child.getData('time'));
+                if (child.getData('time') < duration) {
+                    timeOffset = duration - Number(child.getData('time'));
                     timeOffset *= 1000;
                 }
 
@@ -773,13 +1064,13 @@ function displayIncomingNotes(scene) {
                 if (timeOffset != 0) {
                     var timer = new Timer(function() {
                         noteTimings.remove(child,true,true);
-                    }, 5000 - timeOffset);
+                    }, duration*1000 - timeOffset);
                     timeouts.push(timer);
                 }
                 else {
                     var timer = new Timer(function() {
                         noteTimings.remove(child,true,true);
-                    }, 5000);
+                    }, duration*1000);
                     timeouts.push(timer);
                 }
                 //console.log(child.getData('time') + 'started running at' + currentTime);
@@ -793,11 +1084,11 @@ function displayIncomingNotes(scene) {
         if (animationRunning == false) {
             //If note is coming in 5 seconds or less
             //Ex: note that starts at 5sec will show from 0sec
-            if ( currentTime > 0 && Number(child.getData('time')) < (Number(currentTime) + 5)) {
+            if ( currentTime > 0 && Number(child.getData('time')) < (Number(currentTime) + duration)) {
                 child.enableBody(true, child.x, child.y, true, true);
                 var timeOffset = 0;
-                if (child.getData('time') < 5) {
-                    timeOffset = 5 - Number(child.getData('time'));
+                if (child.getData('time') < duration) {
+                    timeOffset = duration - Number(child.getData('time'));
                     timeOffset *= 1000;
                 }
                 var tween = scene.tweens.add({
@@ -805,7 +1096,7 @@ function displayIncomingNotes(scene) {
                     x: (child.x - 300),
                     ease: 'Linear',
                     //Duration matches the currentTime + 5, in the if statement above
-                    duration: 4950 - timeOffset,
+                    duration: duration*1000 - 50 - timeOffset,
                     yoyo: false,
                     repeat: 0
                 });
@@ -813,13 +1104,13 @@ function displayIncomingNotes(scene) {
                 if (timeOffset != 0) {
                     var timer = new Timer(function() {
                         incomingNotes.remove(child,true,true);
-                    }, 5000 - timeOffset);
+                    }, duration*1000 - timeOffset);
                     timeouts.push(timer);
                 }
                 else {
                     var timer = new Timer(function() {
                         incomingNotes.remove(child,true,true);
-                    }, 5000);
+                    }, duration*1000);
                     timeouts.push(timer);
                 }
                 child.setData('animationRunning', true);
@@ -832,11 +1123,11 @@ function displayIncomingNotes(scene) {
         if (animationRunning == false) {
             //If note is coming in 5 seconds or less
             //Ex: note that starts at 5sec will show from 0sec
-            if ( currentTime > 0 && Number(child.getData('time')) < (Number(currentTime) + 5)) {
+            if ( currentTime > 0 && Number(child.getData('time')) < (Number(currentTime) + duration)) {
                 child.enableBody(true, child.x, child.y, true, true);
                 var timeOffset = 0;
-                if (child.getData('time') < 5) {
-                    timeOffset = 5 - Number(child.getData('time'));
+                if (child.getData('time') < duration) {
+                    timeOffset = duration - Number(child.getData('time'));
                     timeOffset *= 1000;
                 }
                 var tween = scene.tweens.add({
@@ -844,7 +1135,7 @@ function displayIncomingNotes(scene) {
                     angle: 360,
                     ease: 'Linear',
                     //Duration matches the currentTime + 5, in the if statement above
-                    duration: 4950 - timeOffset,
+                    duration: duration*1000 - 50 - timeOffset,
                     yoyo: false,
                     repeat: 0
                 });
@@ -852,13 +1143,13 @@ function displayIncomingNotes(scene) {
                 if (timeOffset != 0) {
                     var timer = new Timer(function() {
                         timerHands.remove(child,true,true);
-                    }, 5000 - timeOffset);
+                    }, duration*1000 - timeOffset);
                     timeouts.push(timer);
                 }
                 else {
                     var timer = new Timer(function() {
                         timerHands.remove(child,true,true);
-                    }, 5000);
+                    }, duration*1000);
                     timeouts.push(timer);
                 }
                 child.setData('animationRunning', true);
@@ -876,9 +1167,11 @@ function pauseGame(scene) {
         scene.tweens.pauseAll();
         player.pauseVideo();
         thumbnailImg.style.visibility = 'visible';
+        pauseContainer.visible = true;
     }
     //Unpausing game
     else {
+        pauseContainer.visible = false;
         thumbnailImg.style.visibility = 'hidden';
         //3 second countdown until resuming
         setTimeout(function() {        
@@ -889,7 +1182,7 @@ function pauseGame(scene) {
             }
         }, 3000);
         countdown = 3;
-        countdownText = scene.add.text(400, 0, countdown, { fontSize: '32px', fill: '#000' });
+        countdownText = scene.add.text(400, 0, countdown, { fontSize: '32px', fill: '#FFFFFF' });
         interval = setInterval(function() {
             countdown -= 1;
             countdownText.setText(countdown);
@@ -958,7 +1251,7 @@ function onYouTubePlayerAPIReady() {
 
 function onPlayerReady(event) {
     event.target.mute();
-    event.target.setVolume(40);
+    event.target.setVolume(50);
     startInterval();
 }
 

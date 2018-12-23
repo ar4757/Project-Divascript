@@ -1,0 +1,15 @@
+/* The animation code */
+@keyframes firstWave {
+  from {left: 0px;}
+  to {left: -1014px;}
+}
+
+@keyframes leftWave {
+  from {left: 1014px;}
+  to {left: -1014px;}
+}
+
+@keyframes rightWave {
+  from {left: 1014px;}
+  to {left: -1014px;}
+}
