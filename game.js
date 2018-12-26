@@ -83,6 +83,8 @@ var fgd;
 
 var pauseContainer;
 
+var holding = false;
+
 function preload ()
 {
     this.load.image('bar', 'assets/bar.png');
@@ -139,6 +141,8 @@ function preload ()
     this.load.image('footer-controls', 'assets/footer-controls.png');
 
     this.load.image('pause-plate', 'assets/pause-plate.png');
+
+    this.load.image('hold', 'assets/hold.png');
 }
 
 function create ()
@@ -204,7 +208,7 @@ function create ()
     p = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.P);
 
     //  The score
-    scoreText = this.add.text(16, 16, 'Score: 0', { fontSize: '32px', fill: '#FFFFFF' });
+    scoreText = this.add.text(16, 96, 'Score: 0', { fontSize: '32px', fill: '#FFFFFF' });
 
     scoreText.visible = false;
 
@@ -631,12 +635,14 @@ function generateNotes() {
             var y = currentNoteArray[2];
 
             var name = currentNoteArray[3];
+            var hold = currentNoteArray[4];
             var key = 'inverted-' + name;
             var newNote = noteTimings.create(x, y, key).setScale(0.35).refreshBody();
             newNote.setData('time', time);
             newNote.setData('x', x);
             newNote.setData('y', y);
             newNote.setData('name', name);
+            newNote.setData('hold', hold);
             newNote.setData('animationRunning', false);
             newNote.disableBody(true, true);
         }
@@ -771,6 +777,33 @@ function noteKeyIsPressed() {
     }
 }
 
+function noteKeyIsReleased() {
+    if (
+        Phaser.Input.Keyboard.JustUp(w) || Phaser.Input.Keyboard.JustUp(cursors.up)) {
+        currentKey = 'triangle';
+        return true;
+    }
+    if (
+        Phaser.Input.Keyboard.JustUp(a) || Phaser.Input.Keyboard.JustUp(cursors.left)) {
+        currentKey = 'square';
+        return true;
+    }
+    if (
+        Phaser.Input.Keyboard.JustUp(s) || Phaser.Input.Keyboard.JustUp(cursors.down)) {
+        currentKey = 'cross';
+        return true;
+    }
+    if (
+        Phaser.Input.Keyboard.JustUp(d) || Phaser.Input.Keyboard.JustUp(cursors.right)) {
+        currentKey = 'circle';
+        return true;
+    }
+    else {
+        currentKey = '';
+        return false;
+    }
+}
+
 var x = 32;
 var y = 550;
 var xOffset = 0;
@@ -845,6 +878,15 @@ function update ()
         if (player.getPlayerState() == 1) {
             displayIncomingNotes(this);
 
+            if (noteKeyIsReleased()) {
+                holding = false;
+            }
+
+            if (holding == true) {
+                score += 500;
+                scoreText.setText('Score: ' + score);
+            }
+
             if (noteKeyIsPressed()) {
                 //Play sound effect either way
                 this.sound.play('button1');
@@ -870,6 +912,10 @@ function update ()
                         newsprite.animate(this);
                         score += 550;
                         scoreText.setText('Score: ' + score);
+                        var hold = timingChild.getData('hold');
+                        if (hold == 1) {
+                            holding = true;
+                        }
                     }
                     else {
                         //Display feedback            
@@ -891,6 +937,10 @@ function update ()
                         newsprite.animate(this);
                         score += 330;
                         scoreText.setText('Score: ' + score);
+                        var hold = timingChild.getData('hold');
+                        if (hold == 1) {
+                            holding = true;
+                        }
                     }
                     else {
                         //Display feedback            
@@ -999,7 +1049,7 @@ function displayIncomingNotes(scene) {
     noteTimings.children.iterate(function (child) {
         var animationRunning = child.getData('animationRunning');
         if (animationRunning == false) {
-            if ( currentTime > 0 && Number(child.getData('time')) < (Number(currentTime) + duration)) {
+            if (currentTime > 0 && Number(child.getData('time')) < (Number(currentTime) + duration)) {
                 child.enableBody(true, child.x, child.y, true, true);
                 var timeOffset = 0;
                 if (child.getData('time') < duration) {
@@ -1022,6 +1072,14 @@ function displayIncomingNotes(scene) {
                 }
                 //console.log(child.getData('time') + 'started running at' + currentTime);
                 child.setData('animationRunning', true);
+
+                var hold = child.getData('hold');
+                if (hold == 1) {
+                    var firstX = Phaser.Display.Bounds.GetCenterX(child);
+                    var firstY = Phaser.Display.Bounds.GetCenterY(child);
+                    var holdsprite = new holdSprite(scene, firstX, firstY + 25, 'hold').setScale(0.4);
+                    holdsprite.remove();
+                }
             }
         }
     });
@@ -1157,6 +1215,16 @@ class feedbackSprite extends Phaser.GameObjects.Sprite {
             //handle completion
           }
         });
+    }
+}
+
+class holdSprite extends Phaser.GameObjects.Sprite {
+    constructor(scene, x, y, texture, frame) {
+        super(scene, x, y, texture, frame);
+        scene.add.existing(this);
+    }
+    remove(scene) {
+        setTimeout( () => this.destroy(), duration*1000);
     }
 }
 
